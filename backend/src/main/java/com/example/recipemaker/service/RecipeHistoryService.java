@@ -11,9 +11,7 @@ import java.util.List;
 public class RecipeHistoryService {
     private final RecipeRepository recipeRepository;
 
-    // For demo: just return all recipes as "history"
     public List<Recipe> getRecipeHistory(Long recipeId) {
-        // In a real app, implement versioning/history tracking
         return recipeRepository.findAll();
     }
 }

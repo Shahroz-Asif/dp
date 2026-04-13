@@ -31,9 +31,6 @@ public class Recipe {
     @Builder.Default
     private Set<RecipeComponent> modifiableComponents = new HashSet<>();
 
-    /**
-     * Returns all components (main + modifiable) in this recipe.
-     */
     @Transient
     public Set<RecipeComponent> getAllComponents() {
         Set<RecipeComponent> all = new HashSet<>(modifiableComponents);

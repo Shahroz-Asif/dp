@@ -4,6 +4,7 @@ import com.example.recipemaker.model.*;
 import com.example.recipemaker.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
@@ -15,9 +16,25 @@ public class DataSeeder implements CommandLineRunner {
     private final PatientConditionRepository conditionRepo;
     private final RecipeComponentRepository componentRepo;
     private final RecipeRepository recipeRepo;
+    private final AppUserRepository userRepo;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
+        // Seed default users
+        if (userRepo.count() == 0) {
+            userRepo.save(AppUser.builder()
+                    .username("testuser")
+                    .password(passwordEncoder.encode("secret"))
+                    .role("USER")
+                    .build());
+            userRepo.save(AppUser.builder()
+                    .username("admin")
+                    .password(passwordEncoder.encode("admin"))
+                    .role("ADMIN")
+                    .build());
+        }
+
         if (conditionRepo.count() > 0) return; // Already seeded
 
         // === Patient Conditions ===

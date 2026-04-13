@@ -4,10 +4,6 @@ import com.example.recipemaker.model.Recipe;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Composite Strategy: composes multiple RecipeSearchStrategy instances.
- * A recipe matches only if ALL child strategies match (AND logic).
- */
 public class CompositeAndSearchStrategy implements RecipeSearchStrategy {
     private final List<RecipeSearchStrategy> strategies = new ArrayList<>();
 

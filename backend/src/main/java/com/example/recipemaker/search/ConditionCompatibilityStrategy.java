@@ -6,10 +6,6 @@ import com.example.recipemaker.model.RecipeComponent;
 
 import java.util.Set;
 
-/**
- * Strategy: matches recipes whose main component is compatible with
- * all of the given patient conditions (i.e., the recipe is selectable).
- */
 public class ConditionCompatibilityStrategy implements RecipeSearchStrategy {
     private final Set<PatientCondition> patientConditions;
 

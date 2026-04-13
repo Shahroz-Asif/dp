@@ -24,9 +24,6 @@ public class RecipeService {
     private final RecipeComponentRepository componentRepository;
     private final PatientConditionRepository conditionRepository;
 
-    /**
-     * Uses the Builder pattern to construct and persist a Recipe.
-     */
     public Recipe createRecipe(RecipeRequest request) {
         RecipeComponent mainComponent = componentRepository.findById(request.getMainComponentId())
                 .orElseThrow(() -> new NoSuchElementException("Main component not found"));
@@ -81,13 +78,6 @@ public class RecipeService {
         recipeRepository.deleteById(id);
     }
 
-    /**
-     * Checks compatibility of a recipe against a patient's conditions.
-     *
-     * - If the main component is incompatible → recipe is unselectable.
-     * - If a modifiable component is incompatible → that component is unselectable,
-     *   but the recipe and other compatible components remain selectable.
-     */
     public CompatibilityResult checkCompatibility(Long recipeId, Set<Long> conditionIds) {
         Recipe recipe = getRecipeById(recipeId);
         Set<PatientCondition> conditions = new HashSet<>(conditionRepository.findAllById(conditionIds));
@@ -96,7 +86,6 @@ public class RecipeService {
         boolean recipeSelectable = true;
         String reason = "Compatible";
 
-        // Check main component
         RecipeComponent main = recipe.getMainComponent();
         String mainIncompat = findIncompatibleCondition(main, conditions);
         if (mainIncompat != null) {
@@ -111,7 +100,6 @@ public class RecipeService {
                 .incompatibleCondition(mainIncompat)
                 .build());
 
-        // Check modifiable components
         for (RecipeComponent comp : recipe.getModifiableComponents()) {
             String incompat = findIncompatibleCondition(comp, conditions);
             details.add(ComponentCompatibility.builder()
@@ -134,19 +122,16 @@ public class RecipeService {
 
     private String findIncompatibleCondition(RecipeComponent component, Set<PatientCondition> conditions) {
         if (component.getIncompatibleConditions() == null) return null;
-        for (PatientCondition ic : component.getIncompatibleConditions()) {
-            for (PatientCondition pc : conditions) {
-                if (ic.getId().equals(pc.getId())) {
-                    return pc.getName();
+        for (PatientCondition incompatibleCondition : component.getIncompatibleConditions()) {
+            for (PatientCondition patientCondition : conditions) {
+                if (incompatibleCondition.getId().equals(patientCondition.getId())) {
+                    return patientCondition.getName();
                 }
             }
         }
         return null;
     }
 
-    /**
-     * Uses the Composite Strategy pattern to search/filter recipes.
-     */
     public List<Recipe> searchRecipes(String name, String componentName, Set<Long> compatibleConditionIds) {
         CompositeAndSearchStrategy composite = new CompositeAndSearchStrategy();
 
@@ -178,15 +163,15 @@ public class RecipeService {
                 .build();
     }
 
-    private ComponentResponse toComponentResponse(RecipeComponent c) {
+    private ComponentResponse toComponentResponse(RecipeComponent component) {
         return ComponentResponse.builder()
-                .id(c.getId())
-                .name(c.getName())
-                .description(c.getDescription())
-                .modifiable(c.isModifiable())
+                .id(component.getId())
+                .name(component.getName())
+                .description(component.getDescription())
+                .modifiable(component.isModifiable())
                 .incompatibleConditionNames(
-                        c.getIncompatibleConditions() != null
-                                ? c.getIncompatibleConditions().stream()
+                        component.getIncompatibleConditions() != null
+                                ? component.getIncompatibleConditions().stream()
                                 .map(PatientCondition::getName)
                                 .collect(Collectors.toSet())
                                 : Set.of())

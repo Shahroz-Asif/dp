@@ -6,10 +6,6 @@ import com.example.recipemaker.model.RecipeComponent;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * Builder pattern for constructing Recipe objects step-by-step.
- * Enforces that a main component must be set before building.
- */
 public class RecipeBuilder {
     private String name;
     private String description;

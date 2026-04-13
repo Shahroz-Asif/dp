@@ -2,9 +2,6 @@ package com.example.recipemaker.search;
 
 import com.example.recipemaker.model.Recipe;
 
-/**
- * Strategy: matches recipes whose name contains the given keyword (case-insensitive).
- */
 public class NameSearchStrategy implements RecipeSearchStrategy {
     private final String keyword;
 
