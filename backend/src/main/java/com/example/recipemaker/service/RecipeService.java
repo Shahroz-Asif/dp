@@ -5,11 +5,13 @@ import com.example.recipemaker.dto.*;
 import com.example.recipemaker.model.PatientCondition;
 import com.example.recipemaker.model.Recipe;
 import com.example.recipemaker.model.RecipeComponent;
+import com.example.recipemaker.repository.AppUserRepository;
 import com.example.recipemaker.repository.PatientConditionRepository;
 import com.example.recipemaker.repository.RecipeComponentRepository;
 import com.example.recipemaker.repository.RecipeRepository;
 import com.example.recipemaker.search.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ public class RecipeService {
     private final RecipeRepository recipeRepository;
     private final RecipeComponentRepository componentRepository;
     private final PatientConditionRepository conditionRepository;
+    private final AppUserRepository userRepository;
 
     public Recipe createRecipe(RecipeRequest request) {
         RecipeComponent mainComponent = componentRepository.findById(request.getMainComponentId())
@@ -42,6 +45,15 @@ public class RecipeService {
         }
 
         Recipe recipe = builder.build();
+        recipe.setMealCourse(request.getMealCourse());
+        recipe.setMealType(request.getMealType());
+
+        String username = SecurityContextHolder.getContext().getAuthentication() != null
+                ? SecurityContextHolder.getContext().getAuthentication().getName() : null;
+        if (username != null) {
+            userRepository.findByUsername(username).ifPresent(recipe::setCreatedBy);
+        }
+
         return recipeRepository.save(recipe);
     }
 
@@ -61,6 +73,8 @@ public class RecipeService {
 
         existing.setName(request.getName());
         existing.setDescription(request.getDescription());
+        existing.setMealCourse(request.getMealCourse());
+        existing.setMealType(request.getMealType());
         existing.setMainComponent(mainComponent);
 
         if (request.getModifiableComponentIds() != null) {
@@ -87,6 +101,16 @@ public class RecipeService {
         String reason = "Compatible";
 
         RecipeComponent main = recipe.getMainComponent();
+        if (main == null) {
+            return CompatibilityResult.builder()
+                    .recipeId(recipe.getId())
+                    .recipeName(recipe.getName())
+                    .recipeSelectable(false)
+                    .reason("Recipe has no main component")
+                    .componentDetails(Collections.emptyList())
+                    .build();
+        }
+
         String mainIncompat = findIncompatibleCondition(main, conditions);
         if (mainIncompat != null) {
             recipeSelectable = false;
@@ -156,7 +180,10 @@ public class RecipeService {
                 .id(recipe.getId())
                 .name(recipe.getName())
                 .description(recipe.getDescription())
-                .mainComponent(toComponentResponse(recipe.getMainComponent()))
+                .mealCourse(recipe.getMealCourse())
+                .mealType(recipe.getMealType())
+                .createdByUsername(recipe.getCreatedBy() != null ? recipe.getCreatedBy().getUsername() : null)
+                .mainComponent(recipe.getMainComponent() != null ? toComponentResponse(recipe.getMainComponent()) : null)
                 .modifiableComponents(recipe.getModifiableComponents().stream()
                         .map(this::toComponentResponse)
                         .collect(Collectors.toList()))

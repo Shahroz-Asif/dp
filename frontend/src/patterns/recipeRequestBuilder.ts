@@ -1,4 +1,4 @@
-import type { RecipeRequest } from '../types/api';
+import type { MealCourse, MealType, RecipeRequest } from '../types/api';
 
 /**
  * Builder Pattern — constructs a validated RecipeRequest step-by-step.
@@ -12,6 +12,8 @@ export class RecipeRequestBuilder {
   private _description = '';
   private _mainComponentId: number | null = null;
   private _modifiableComponentIds: number[] = [];
+  private _mealCourse: MealCourse = 'BREAKFAST';
+  private _mealType: MealType = 'MAIN';
 
   name(value: string): this {
     this._name = value;
@@ -33,6 +35,16 @@ export class RecipeRequestBuilder {
     return this;
   }
 
+  mealCourse(value: MealCourse): this {
+    this._mealCourse = value;
+    return this;
+  }
+
+  mealType(value: MealType): this {
+    this._mealType = value;
+    return this;
+  }
+
   /** Validates all required fields and returns the complete request object */
   build(): RecipeRequest {
     if (!this._name.trim()) {
@@ -46,6 +58,8 @@ export class RecipeRequestBuilder {
       description: this._description.trim(),
       mainComponentId: this._mainComponentId,
       modifiableComponentIds: this._modifiableComponentIds,
+      mealCourse: this._mealCourse,
+      mealType: this._mealType,
     };
   }
 }

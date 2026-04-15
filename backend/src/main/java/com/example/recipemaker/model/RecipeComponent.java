@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
+
 import java.util.Set;
 
 @Entity
@@ -12,6 +14,7 @@ import java.util.Set;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@SQLRestriction("deleted = false")
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ModifiableComponent.class, name = "MODIFIABLE"),
@@ -30,5 +33,9 @@ public abstract class RecipeComponent {
         inverseJoinColumns = @JoinColumn(name = "condition_id")
     )
     private Set<PatientCondition> incompatibleConditions;
+
+    @Column(nullable = false)
+    private boolean deleted = false;
+
     public abstract boolean isModifiable();
 }

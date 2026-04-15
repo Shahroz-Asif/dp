@@ -1,5 +1,6 @@
 package com.example.recipemaker.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.HashSet;
@@ -18,7 +19,13 @@ public class Recipe {
     private String name;
     private String description;
 
-    @ManyToOne
+    @Enumerated(EnumType.STRING)
+    private MealCourse mealCourse;
+
+    @Enumerated(EnumType.STRING)
+    private MealType mealType;
+
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "main_component_id", nullable = false)
     private RecipeComponent mainComponent;
 
@@ -30,6 +37,11 @@ public class Recipe {
     )
     @Builder.Default
     private Set<RecipeComponent> modifiableComponents = new HashSet<>();
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "created_by_user_id")
+    @JsonIgnore
+    private AppUser createdBy;
 
     @Transient
     public Set<RecipeComponent> getAllComponents() {

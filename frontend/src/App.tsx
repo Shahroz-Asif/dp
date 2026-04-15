@@ -10,6 +10,10 @@ import { RecipeFormPage } from './pages/RecipeFormPage';
 import { ComponentsPage } from './pages/ComponentsPage';
 import { ConditionsPage } from './pages/ConditionsPage';
 import { PatientProfilePage } from './pages/PatientProfilePage';
+import { ActiveOrdersPage } from './pages/ActiveOrdersPage';
+import { OrderHistoryPage } from './pages/OrderHistoryPage';
+import { KitchenPage } from './pages/KitchenPage';
+import { DoctorPage } from './pages/DoctorPage';
 
 export default function App() {
   return (
@@ -28,6 +32,10 @@ export default function App() {
               <Route path="/components" element={<ComponentsPage />} />
               <Route path="/conditions" element={<ConditionsPage />} />
               <Route path="/profile" element={<PatientProfilePage />} />
+              <Route path="/orders/active" element={<ActiveOrdersPage />} />
+              <Route path="/orders/history" element={<OrderHistoryPage />} />
+              <Route path="/kitchen" element={<KitchenPage />} />
+              <Route path="/doctor" element={<DoctorPage />} />
               <Route path="*" element={<Navigate to="/recipes" replace />} />
             </Route>
           </Route>

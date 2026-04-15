@@ -75,14 +75,14 @@ class RecipeServiceIntegrationTest {
         void seeds5MainComponents() {
             long mainCount = componentRepo.findAll().stream()
                     .filter(c -> !c.isModifiable()).count();
-            assertEquals(5, mainCount);
+            assertEquals(8, mainCount);
         }
 
         @Test
         void seeds10ModifiableComponents() {
             long modCount = componentRepo.findAll().stream()
                     .filter(RecipeComponent::isModifiable).count();
-            assertEquals(10, modCount);
+            assertEquals(11, modCount);
         }
 
         @Test
@@ -254,7 +254,7 @@ class RecipeServiceIntegrationTest {
         @Test
         void searchByName_chicken() {
             List<Recipe> results = recipeService.searchRecipes("Chicken", null, null);
-            assertEquals(2, results.size());
+            assertEquals(3, results.size());
             assertTrue(results.stream().allMatch(r -> r.getName().contains("Chicken")));
         }
 
@@ -312,7 +312,7 @@ class RecipeServiceIntegrationTest {
         void searchCombined_nameAndCondition() {
             // Looking for "Chicken" recipes safe for celiac
             List<Recipe> results = recipeService.searchRecipes("Chicken", null, Set.of(celiacId));
-            assertEquals(2, results.size());
+            assertEquals(3, results.size());
             assertTrue(results.stream().allMatch(r -> r.getName().contains("Chicken")));
         }
 

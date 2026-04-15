@@ -3,40 +3,56 @@ import { Link } from 'react-router-dom';
 import { useRecipes } from '../hooks/useRecipes';
 import { buildAndStrategy } from '../patterns/searchStrategy';
 import { usePatientProfile } from '../context/PatientProfileContext';
-import type { RecipeResponse } from '../types/api';
+import { useAuth } from '../context/AuthContext';
+import { orderRepository } from '../api/orders';
+import type { MealCourse, RecipeResponse } from '../types/api';
+import axios from 'axios';
 
-/**
- * Recipe list page.
- *
- * Client-side filtering uses the Strategy Pattern (CompositeAndSearchStrategy)
- * for instant, zero-latency filtering on top of the already-loaded recipe list.
- * The backend search endpoint is also available for server-filtered results
- * (called when the user submits the search form explicitly).
- *
- * When the user has a saved health profile, a toggle appears to narrow the list
- * to only recipes whose main component is compatible with their conditions.
- */
+const COURSES: Array<'ALL' | MealCourse> = ['ALL', 'BREAKFAST', 'LUNCH', 'DINNER'];
+
 export function RecipeListPage() {
   const { recipes, loading, error } = useRecipes();
   const { profileConditions } = usePatientProfile();
+  const { role } = useAuth();
+  const [courseFilter, setCourseFilter] = useState<'ALL' | MealCourse>('ALL');
   const [nameFilter, setNameFilter] = useState('');
   const [componentFilter, setComponentFilter] = useState('');
   const [profileFilterOn, setProfileFilterOn] = useState(false);
+  const [orderingId, setOrderingId] = useState<number | null>(null);
+  const [orderMsg, setOrderMsg] = useState<{ id: number; type: 'ok' | 'err'; text: string } | null>(null);
 
-  // Build a composite AND strategy from the active filter values
   const strategy = buildAndStrategy({ name: nameFilter, componentName: componentFilter });
-  let filtered = recipes.filter((r) => strategy.matches(r));
-
-  // Profile filter: exclude recipes whose main component conflicts with any profile condition
   const profileConditionNames = new Set(profileConditions.map((c) => c.name));
+
   const isProfileCompatible = (recipe: RecipeResponse) =>
     recipe.mainComponent.incompatibleConditionNames.every(
       (condName) => !profileConditionNames.has(condName)
     );
 
+  let filtered = recipes
+    .filter((r) => courseFilter === 'ALL' || r.mealCourse === courseFilter)
+    .filter((r) => strategy.matches(r));
+
   if (profileFilterOn && profileConditions.length > 0) {
     filtered = filtered.filter(isProfileCompatible);
   }
+
+  const handleOrder = async (recipe: RecipeResponse) => {
+    setOrderingId(recipe.id);
+    setOrderMsg(null);
+    try {
+      await orderRepository.placeOrder({ recipeId: recipe.id });
+      setOrderMsg({ id: recipe.id, type: 'ok', text: 'Order placed!' });
+    } catch (err) {
+      const msg =
+        axios.isAxiosError(err) && err.response?.data?.message
+          ? err.response.data.message
+          : 'Could not place order.';
+      setOrderMsg({ id: recipe.id, type: 'err', text: msg });
+    } finally {
+      setOrderingId(null);
+    }
+  };
 
   if (loading) return <p className="page-loading">Loading recipes…</p>;
   if (error) return <p className="error-msg">{error}</p>;
@@ -44,13 +60,28 @@ export function RecipeListPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Recipes</h2>
-        <Link to="/recipes/new" className="btn btn-primary">
-          + New Recipe
-        </Link>
+        <h2>Menu</h2>
+        {(role === 'DIETICIAN' || role === 'ADMIN') && (
+          <Link to="/recipes/new" className="btn btn-primary">
+            + New Recipe
+          </Link>
+        )}
       </div>
 
-      {/* Search bar — drives the Strategy filter above */}
+      {/* Meal course tabs */}
+      <div className="course-tabs">
+        {COURSES.map((course) => (
+          <button
+            key={course}
+            className={`course-tab${courseFilter === course ? ' active' : ''}`}
+            onClick={() => setCourseFilter(course)}
+          >
+            {course === 'ALL' ? 'All Meals' : course.charAt(0) + course.slice(1).toLowerCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* Search bar */}
       <div className="search-bar">
         <input
           type="search"
@@ -66,7 +97,7 @@ export function RecipeListPage() {
         />
       </div>
 
-      {/* Profile filter toggle — only shown when the user has a saved profile */}
+      {/* Profile filter toggle */}
       {profileConditions.length > 0 && (
         <div className="profile-filter-bar">
           <label className="profile-filter-toggle">
@@ -89,22 +120,54 @@ export function RecipeListPage() {
         <div className="recipe-grid">
           {filtered.map((recipe) => {
             const compatible = profileConditions.length === 0 || isProfileCompatible(recipe);
+            const thisOrderMsg = orderMsg?.id === recipe.id ? orderMsg : null;
+
             return (
-              <Link to={`/recipes/${recipe.id}`} key={recipe.id} className="recipe-card">
+              <div key={recipe.id} className="recipe-card recipe-card-block">
                 <div className="recipe-card-title-row">
-                  <h3>{recipe.name}</h3>
+                  <Link to={`/recipes/${recipe.id}`} className="recipe-card-link">
+                    <h3>{recipe.name}</h3>
+                  </Link>
                   {profileConditions.length > 0 && (
                     <span className={`badge ${compatible ? 'badge-ok' : 'badge-warn'}`}>
                       {compatible ? '✓ Safe' : '✗ Conflicts'}
                     </span>
                   )}
                 </div>
+
                 <p>{recipe.description || 'No description.'}</p>
+
+                <div className="recipe-card-badges">
+                  <span className={`meal-course-badge course-${recipe.mealCourse?.toLowerCase()}`}>
+                    {recipe.mealCourse}
+                  </span>
+                  <span className={`meal-type-badge type-${recipe.mealType?.toLowerCase()}`}>
+                    {recipe.mealType}
+                  </span>
+                </div>
+
                 <div className="recipe-card-meta">
                   <span>Main: {recipe.mainComponent.name}</span>
                   <span>{recipe.modifiableComponents.length} optional</span>
                 </div>
-              </Link>
+
+                {role === 'PATIENT' && (
+                  <div className="recipe-card-order">
+                    {thisOrderMsg && (
+                      <p className={thisOrderMsg.type === 'ok' ? 'order-success' : 'order-error'}>
+                        {thisOrderMsg.text}
+                      </p>
+                    )}
+                    <button
+                      className="btn btn-primary btn-sm"
+                      disabled={!!orderingId}
+                      onClick={() => handleOrder(recipe)}
+                    >
+                      {orderingId === recipe.id ? 'Ordering…' : 'Order'}
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -112,3 +175,4 @@ export function RecipeListPage() {
     </div>
   );
 }
+

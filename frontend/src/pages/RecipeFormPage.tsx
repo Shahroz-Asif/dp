@@ -3,15 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { recipeRepository } from '../api/recipes';
 import { useComponents } from '../hooks/useComponents';
 import { RecipeRequestBuilder } from '../patterns/recipeRequestBuilder';
+import type { MealCourse, MealType } from '../types/api';
 
-/**
- * Shared create / edit form for recipes.
- *
- * Uses the Builder Pattern (RecipeRequestBuilder) to assemble and validate
- * the request payload before submitting, keeping validation logic out of
- * the component. The mainComponent dropdown is filtered to non-modifiable
- * components only; the multi-checkbox is filtered to modifiable ones.
- */
 export function RecipeFormPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -21,6 +14,8 @@ export function RecipeFormPage() {
   const [description, setDescription] = useState('');
   const [mainComponentId, setMainComponentId] = useState<number | ''>('');
   const [selectedModifiable, setSelectedModifiable] = useState<number[]>([]);
+  const [mealCourse, setMealCourse] = useState<MealCourse>('BREAKFAST');
+  const [mealType, setMealType] = useState<MealType>('MAIN');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -28,7 +23,6 @@ export function RecipeFormPage() {
   const mainComponents = components.filter((c) => !c.modifiable);
   const modifiableComponents = components.filter((c) => c.modifiable);
 
-  // Pre-fill form when editing
   useEffect(() => {
     if (!isEdit) return;
     recipeRepository.getById(Number(id)).then((recipe) => {
@@ -36,6 +30,8 @@ export function RecipeFormPage() {
       setDescription(recipe.description ?? '');
       setMainComponentId(recipe.mainComponent.id);
       setSelectedModifiable(recipe.modifiableComponents.map((c) => c.id));
+      if (recipe.mealCourse) setMealCourse(recipe.mealCourse);
+      if (recipe.mealType) setMealType(recipe.mealType);
     });
   }, [id, isEdit]);
 
@@ -51,12 +47,13 @@ export function RecipeFormPage() {
     setSaving(true);
 
     try {
-      // Builder validates required fields and constructs the request object
       const request = new RecipeRequestBuilder()
         .name(name)
         .description(description)
         .mainComponent(Number(mainComponentId))
         .modifiableComponents(selectedModifiable)
+        .mealCourse(mealCourse)
+        .mealType(mealType)
         .build();
 
       if (isEdit) {
@@ -96,6 +93,35 @@ export function RecipeFormPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="mealCourse">Meal Course *</label>
+            <select
+              id="mealCourse"
+              value={mealCourse}
+              onChange={(e) => setMealCourse(e.target.value as MealCourse)}
+              required
+            >
+              <option value="BREAKFAST">Breakfast</option>
+              <option value="LUNCH">Lunch</option>
+              <option value="DINNER">Dinner</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="mealType">Meal Type *</label>
+            <select
+              id="mealType"
+              value={mealType}
+              onChange={(e) => setMealType(e.target.value as MealType)}
+              required
+            >
+              <option value="MAIN">Main</option>
+              <option value="SIDE">Side</option>
+            </select>
+          </div>
         </div>
 
         <div className="form-group">

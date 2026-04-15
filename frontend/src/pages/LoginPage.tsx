@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { recipeRepository } from '../api/recipes';
 
 export function LoginPage() {
   const [username, setUsername] = useState('');
@@ -9,23 +8,18 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { login, logout } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
-    // Inject credentials into the module-level store via login(), then verify
-    // them with a real API call. If the server returns 401, roll back via logout().
-    login(username, password);
     try {
-      await recipeRepository.getAll();
+      await login(username, password);
       navigate('/recipes');
-    } catch {
-      logout();
-      setError('Invalid username or password.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid username or password.');
     } finally {
       setLoading(false);
     }
@@ -35,7 +29,7 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <h1 className="login-title">RecipeMaker</h1>
-        <p className="login-subtitle">Patient Recipe System</p>
+        <p className="login-subtitle">Hospital Meal System</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -69,10 +63,18 @@ export function LoginPage() {
           </button>
         </form>
 
-        <p className="login-hint">
-          Register via <code>POST /api/auth/register</code> or the Swagger UI at{' '}
-          <code>/swagger-ui.html</code>.
-        </p>
+        <div className="login-demo-accounts">
+          <p className="login-hint">Demo accounts:</p>
+          <table className="login-demo-table">
+            <tbody>
+              <tr><td>admin / admin</td><td className="login-demo-role">Admin</td></tr>
+              <tr><td>doctor1 / doctor</td><td className="login-demo-role">Doctor</td></tr>
+              <tr><td>dietician1 / dietician</td><td className="login-demo-role">Dietician</td></tr>
+              <tr><td>patient1 / patient</td><td className="login-demo-role">Patient</td></tr>
+              <tr><td>kitchen / kitchen</td><td className="login-demo-role">Kitchen</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

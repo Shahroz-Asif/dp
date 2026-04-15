@@ -1,11 +1,17 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { usePatientProfile } from '../../context/PatientProfileContext';
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Admin',
+  DOCTOR: 'Doctor',
+  DIETICIAN: 'Dietician',
+  PATIENT: 'Patient',
+  KITCHEN: 'Kitchen',
+};
 
 /** Persistent sidebar + content area shell wrapping all authenticated pages */
 export function AppShell() {
-  const { logout, credentials } = useAuth();
-  const { profileConditions } = usePatientProfile();
+  const { logout, credentials, role } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -13,30 +19,42 @@ export function AppShell() {
     navigate('/login');
   };
 
+  const navLink = (to: string, label: string) => (
+    <NavLink key={to} to={to} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+      {label}
+    </NavLink>
+  );
+
   return (
     <div className="app-shell">
       <nav className="sidebar">
         <div className="sidebar-brand">RecipeMaker</div>
 
         {credentials && (
-          <p className="sidebar-user">{credentials.username}</p>
+          <div className="sidebar-user-block">
+            <p className="sidebar-user">{credentials.username}</p>
+            {role && <span className="sidebar-role-badge">{ROLE_LABELS[role] ?? role}</span>}
+          </div>
         )}
 
-        <NavLink to="/recipes" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          Recipes
-        </NavLink>
-        <NavLink to="/components" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          Components
-        </NavLink>
-        <NavLink to="/conditions" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          Conditions
-        </NavLink>
-        <NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
-          My Profile
-          {profileConditions.length > 0 && (
-            <span className="profile-nav-badge">{profileConditions.length}</span>
-          )}
-        </NavLink>
+        {navLink('/recipes', 'Menu')}
+
+        {role === 'PATIENT' && (
+          <>
+            {navLink('/orders/active', 'My Orders')}
+            {navLink('/orders/history', 'Order History')}
+            {navLink('/profile', 'My Profile')}
+          </>
+        )}
+
+        {(role === 'DOCTOR' || role === 'ADMIN') && navLink('/doctor', 'My Patients')}
+
+        {(role === 'DIETICIAN' || role === 'ADMIN') && navLink('/components', 'Components')}
+
+        {(role === 'DOCTOR' || role === 'DIETICIAN' || role === 'ADMIN') &&
+          navLink('/conditions', 'Conditions')}
+
+        {(role === 'KITCHEN' || role === 'ADMIN') && navLink('/kitchen', 'Kitchen')}
 
         <button className="nav-link nav-logout" onClick={handleLogout}>
           Logout

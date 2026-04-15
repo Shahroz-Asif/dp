@@ -6,7 +6,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @RestController
@@ -30,13 +32,15 @@ public class ComponentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Create a new component")
+    @PreAuthorize("hasAnyRole('DIETICIAN','ADMIN')")
+    @Operation(summary = "Create a new component (Dietician/Admin only)")
     public RecipeComponent createComponent(@RequestBody RecipeComponent component) {
         return componentRepository.save(component);
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Update an existing component")
+    @PreAuthorize("hasAnyRole('DIETICIAN','ADMIN')")
+    @Operation(summary = "Update an existing component (Dietician/Admin only)")
     public RecipeComponent updateComponent(@PathVariable Long id, @RequestBody RecipeComponent component) {
         component.setId(id);
         return componentRepository.save(component);
@@ -44,8 +48,11 @@ public class ComponentController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete a component")
+    @PreAuthorize("hasAnyRole('DIETICIAN','ADMIN')")
+    @Operation(summary = "Soft-delete a component (Dietician/Admin only)")
     public void deleteComponent(@PathVariable Long id) {
-        componentRepository.deleteById(id);
+        RecipeComponent component = componentRepository.findById(id).orElseThrow();
+        component.setDeleted(true);
+        componentRepository.save(component);
     }
 }

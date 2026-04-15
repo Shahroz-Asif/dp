@@ -17,25 +17,31 @@ public class DataSeeder implements CommandLineRunner {
     private final RecipeComponentRepository componentRepo;
     private final RecipeRepository recipeRepo;
     private final AppUserRepository userRepo;
+    private final PatientProfileRepository profileRepo;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
-        // Seed default users
-        if (userRepo.count() == 0) {
-            userRepo.save(AppUser.builder()
-                    .username("testuser")
-                    .password(passwordEncoder.encode("secret"))
-                    .role("USER")
-                    .build());
-            userRepo.save(AppUser.builder()
-                    .username("admin")
-                    .password(passwordEncoder.encode("admin"))
-                    .role("ADMIN")
-                    .build());
-        }
+        if (userRepo.count() > 0) return; // Already seeded
 
-        if (conditionRepo.count() > 0) return; // Already seeded
+        // === Users ===
+        AppUser admin = userRepo.save(AppUser.builder()
+                .username("admin").password(passwordEncoder.encode("admin")).role("ADMIN").build());
+
+        AppUser doctor = userRepo.save(AppUser.builder()
+                .username("doctor1").password(passwordEncoder.encode("doctor")).role("DOCTOR").build());
+
+        AppUser dietician = userRepo.save(AppUser.builder()
+                .username("dietician1").password(passwordEncoder.encode("dietician")).role("DIETICIAN").build());
+
+        AppUser patientUser1 = userRepo.save(AppUser.builder()
+                .username("patient1").password(passwordEncoder.encode("patient")).role("PATIENT").build());
+
+        AppUser patientUser2 = userRepo.save(AppUser.builder()
+                .username("patient2").password(passwordEncoder.encode("patient")).role("PATIENT").build());
+
+        userRepo.save(AppUser.builder()
+                .username("kitchen").password(passwordEncoder.encode("kitchen")).role("KITCHEN").build());
 
         // === Patient Conditions ===
         PatientCondition celiac = conditionRepo.save(PatientCondition.builder()
@@ -61,6 +67,20 @@ public class DataSeeder implements CommandLineRunner {
         PatientCondition nutAllergy = conditionRepo.save(PatientCondition.builder()
                 .name("Tree Nut Allergy")
                 .description("Severe allergic reaction to tree nuts")
+                .createdByDoctor(doctor)
+                .build());
+
+        // === Patient Profiles ===
+        PatientProfile profile1 = profileRepo.save(PatientProfile.builder()
+                .name("Alice Smith").age(34).notes("Requires low-sodium meals")
+                .user(patientUser1).assignedDoctor(doctor)
+                .conditions(Set.of(celiac, lactoseIntolerance))
+                .build());
+
+        PatientProfile profile2 = profileRepo.save(PatientProfile.builder()
+                .name("Bob Jones").age(52).notes("Diabetic patient")
+                .user(patientUser2).assignedDoctor(doctor)
+                .conditions(Set.of(diabetes))
                 .build());
 
         // === Non-Modifiable (Main) Components ===
@@ -93,6 +113,24 @@ public class DataSeeder implements CommandLineRunner {
         pancakeBase.setDescription("Classic buttermilk pancakes made with wheat flour and dairy");
         pancakeBase.setIncompatibleConditions(Set.of(celiac, lactoseIntolerance));
         pancakeBase = componentRepo.save(pancakeBase);
+
+        NonModifiableComponent gardenSalad = new NonModifiableComponent();
+        gardenSalad.setName("Garden Salad Base");
+        gardenSalad.setDescription("Fresh mixed greens, cucumber, and cherry tomatoes");
+        gardenSalad.setIncompatibleConditions(Set.of());
+        gardenSalad = componentRepo.save(gardenSalad);
+
+        NonModifiableComponent vegSoup = new NonModifiableComponent();
+        vegSoup.setName("Clear Vegetable Soup");
+        vegSoup.setDescription("Light broth with seasonal vegetables");
+        vegSoup.setIncompatibleConditions(Set.of());
+        vegSoup = componentRepo.save(vegSoup);
+
+        NonModifiableComponent yogurtBase = new NonModifiableComponent();
+        yogurtBase.setName("Greek Yogurt Base");
+        yogurtBase.setDescription("Creamy Greek yogurt");
+        yogurtBase.setIncompatibleConditions(Set.of(lactoseIntolerance));
+        yogurtBase = componentRepo.save(yogurtBase);
 
         // === Modifiable (Sub) Components ===
         ModifiableComponent creamSauce = new ModifiableComponent();
@@ -155,70 +193,102 @@ public class DataSeeder implements CommandLineRunner {
         freshBerries.setIncompatibleConditions(Set.of());
         freshBerries = componentRepo.save(freshBerries);
 
-        // === Recipes ===
+        ModifiableComponent lemonDressing = new ModifiableComponent();
+        lemonDressing.setName("Lemon Herb Dressing");
+        lemonDressing.setDescription("Light lemon and herb vinaigrette");
+        lemonDressing.setIncompatibleConditions(Set.of());
+        lemonDressing = componentRepo.save(lemonDressing);
 
-        // 1. Chicken with sides — fully compatible with all conditions
+        // === Recipes (MAIN meals) ===
         recipeRepo.save(Recipe.builder()
-                .name("Grilled Chicken & Broccoli")
+                .name("Grilled Chicken & Broccoli").mealCourse(MealCourse.LUNCH).mealType(MealType.MAIN)
                 .description("Lean grilled chicken with steamed broccoli. Safe for most dietary restrictions.")
-                .mainComponent(grilledChicken)
-                .modifiableComponents(Set.of(steamedBroccoli, tomatoSauce))
-                .build());
+                .mainComponent(grilledChicken).modifiableComponents(Set.of(steamedBroccoli, tomatoSauce))
+                .createdBy(dietician).build());
 
-        // 2. Pasta — main incompatible with Celiac; cream sauce incompatible with Lactose Intolerance
         recipeRepo.save(Recipe.builder()
-                .name("Creamy Pasta Alfredo")
+                .name("Creamy Pasta Alfredo").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Wheat pasta with cream sauce and parmesan. Contains gluten and dairy.")
-                .mainComponent(pastaBase)
-                .modifiableComponents(Set.of(creamSauce, cheeseTopping))
-                .build());
+                .mainComponent(pastaBase).modifiableComponents(Set.of(creamSauce, cheeseTopping))
+                .createdBy(dietician).build());
 
-        // 3. Pasta with safe sub-components — main still incompatible with Celiac
         recipeRepo.save(Recipe.builder()
-                .name("Pasta Marinara")
+                .name("Pasta Marinara").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Wheat pasta with tomato basil sauce. Contains gluten but no dairy.")
-                .mainComponent(pastaBase)
-                .modifiableComponents(Set.of(tomatoSauce, steamedBroccoli))
-                .build());
+                .mainComponent(pastaBase).modifiableComponents(Set.of(tomatoSauce, steamedBroccoli))
+                .createdBy(dietician).build());
 
-        // 4. Salmon bowl — compatible main; mixed sub-components
         recipeRepo.save(Recipe.builder()
-                .name("Salmon Power Bowl")
+                .name("Salmon Power Bowl").mealCourse(MealCourse.LUNCH).mealType(MealType.MAIN)
                 .description("Baked salmon with rice, honey glaze, and walnut crumble.")
-                .mainComponent(salmonFillet)
-                .modifiableComponents(Set.of(honeyGlaze, walnutCrumble, steamedBroccoli))
-                .build());
+                .mainComponent(salmonFillet).modifiableComponents(Set.of(honeyGlaze, walnutCrumble, steamedBroccoli))
+                .createdBy(dietician).build());
 
-        // 5. Rice bowl — compatible main; soy sauce incompatible with CKD
         recipeRepo.save(Recipe.builder()
-                .name("Teriyaki Rice Bowl")
+                .name("Teriyaki Rice Bowl").mealCourse(MealCourse.LUNCH).mealType(MealType.MAIN)
                 .description("Steamed rice with soy sauce and broccoli.")
-                .mainComponent(riceBowlBase)
-                .modifiableComponents(Set.of(soySauce, steamedBroccoli))
-                .build());
+                .mainComponent(riceBowlBase).modifiableComponents(Set.of(soySauce, steamedBroccoli))
+                .createdBy(dietician).build());
 
-        // 6. Chicken with risky sides — main ok; sides hit multiple conditions
         recipeRepo.save(Recipe.builder()
-                .name("Chicken Comfort Plate")
+                .name("Chicken Comfort Plate").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Grilled chicken with mashed potatoes and honey glaze.")
-                .mainComponent(grilledChicken)
-                .modifiableComponents(Set.of(mashedPotato, honeyGlaze))
-                .build());
+                .mainComponent(grilledChicken).modifiableComponents(Set.of(mashedPotato, honeyGlaze))
+                .createdBy(dietician).build());
 
-        // 7. Pancake breakfast — main incompatible with Celiac + Lactose Intolerance
         recipeRepo.save(Recipe.builder()
-                .name("Classic Pancake Breakfast")
+                .name("Classic Pancake Breakfast").mealCourse(MealCourse.BREAKFAST).mealType(MealType.MAIN)
                 .description("Buttermilk pancakes with maple syrup and fresh berries.")
-                .mainComponent(pancakeBase)
-                .modifiableComponents(Set.of(mapleSyrup, freshBerries))
-                .build());
+                .mainComponent(pancakeBase).modifiableComponents(Set.of(mapleSyrup, freshBerries))
+                .createdBy(dietician).build());
 
-        // 8. Salmon simple — fully compatible with all conditions
         recipeRepo.save(Recipe.builder()
-                .name("Simple Baked Salmon")
+                .name("Simple Baked Salmon").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Baked salmon with steamed broccoli and tomato sauce. Safe for all conditions.")
-                .mainComponent(salmonFillet)
-                .modifiableComponents(Set.of(steamedBroccoli, tomatoSauce))
-                .build());
+                .mainComponent(salmonFillet).modifiableComponents(Set.of(steamedBroccoli, tomatoSauce))
+                .createdBy(dietician).build());
+
+        recipeRepo.save(Recipe.builder()
+                .name("Chicken & Rice").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
+                .description("Simple grilled chicken with steamed rice.")
+                .mainComponent(grilledChicken).modifiableComponents(Set.of(soySauce, tomatoSauce))
+                .createdBy(dietician).build());
+
+        // === Recipes (SIDE meals) ===
+        recipeRepo.save(Recipe.builder()
+                .name("Garden Side Salad").mealCourse(MealCourse.LUNCH).mealType(MealType.SIDE)
+                .description("Fresh garden salad with lemon herb dressing.")
+                .mainComponent(gardenSalad).modifiableComponents(Set.of(lemonDressing))
+                .createdBy(dietician).build());
+
+        recipeRepo.save(Recipe.builder()
+                .name("Garden Salad Dinner Side").mealCourse(MealCourse.DINNER).mealType(MealType.SIDE)
+                .description("Fresh garden salad with lemon herb dressing, perfect as a dinner side.")
+                .mainComponent(gardenSalad).modifiableComponents(Set.of(lemonDressing))
+                .createdBy(dietician).build());
+
+        recipeRepo.save(Recipe.builder()
+                .name("Vegetable Soup Side").mealCourse(MealCourse.LUNCH).mealType(MealType.SIDE)
+                .description("Light clear vegetable soup — warming and safe for all conditions.")
+                .mainComponent(vegSoup).modifiableComponents(Set.of())
+                .createdBy(dietician).build());
+
+        recipeRepo.save(Recipe.builder()
+                .name("Vegetable Soup Dinner Side").mealCourse(MealCourse.DINNER).mealType(MealType.SIDE)
+                .description("Light clear vegetable soup for dinner.")
+                .mainComponent(vegSoup).modifiableComponents(Set.of())
+                .createdBy(dietician).build());
+
+        recipeRepo.save(Recipe.builder()
+                .name("Yogurt Berry Parfait").mealCourse(MealCourse.BREAKFAST).mealType(MealType.SIDE)
+                .description("Creamy Greek yogurt with fresh mixed berries. Contains dairy.")
+                .mainComponent(yogurtBase).modifiableComponents(Set.of(freshBerries, mapleSyrup))
+                .createdBy(dietician).build());
+
+        recipeRepo.save(Recipe.builder()
+                .name("Steamed Broccoli Side").mealCourse(MealCourse.DINNER).mealType(MealType.SIDE)
+                .description("Simple steamed broccoli florets. Safe for all conditions.")
+                .mainComponent(gardenSalad).modifiableComponents(Set.of(steamedBroccoli))
+                .createdBy(dietician).build());
     }
 }

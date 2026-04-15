@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { conditionRepository } from '../api/conditions';
 import { useConditions } from '../hooks/useConditions';
+import { useAuth } from '../context/AuthContext';
 
 export function ConditionsPage() {
   const { conditions, loading, error, refresh } = useConditions();
+  const { role } = useAuth();
+  const canManage = role === 'DOCTOR' || role === 'ADMIN';
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -36,12 +39,14 @@ export function ConditionsPage() {
     <div className="page">
       <div className="page-header">
         <h2>Patient Conditions</h2>
-        <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : '+ Add Condition'}
-        </button>
+        {canManage && (
+          <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : '+ Add Condition'}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {canManage && showForm && (
         <form className="form inline-form" onSubmit={handleCreate}>
           <div className="form-row">
             <div className="form-group">
@@ -73,22 +78,31 @@ export function ConditionsPage() {
           <tr>
             <th>Name</th>
             <th>Description</th>
-            <th></th>
+            <th>Created By</th>
+            {canManage && <th></th>}
           </tr>
         </thead>
         <tbody>
           {conditions.map((c) => (
             <tr key={c.id}>
-              <td>{c.name}</td>
-              <td>{c.description || '—'}</td>
               <td>
-                <button
-                  className="btn btn-sm btn-danger"
-                  onClick={() => handleDelete(c.id, c.name)}
-                >
-                  Delete
-                </button>
+                {c.name}
+                {c.createdByDoctorName && (
+                  <span className="doctor-badge"> (Dr. {c.createdByDoctorName})</span>
+                )}
               </td>
+              <td>{c.description || '—'}</td>
+              <td>{c.createdByDoctorName ? `Dr. ${c.createdByDoctorName}` : 'System'}</td>
+              {canManage && (
+                <td>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => handleDelete(c.id, c.name)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

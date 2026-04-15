@@ -3,12 +3,15 @@ package com.example.recipemaker.controller;
 import com.example.recipemaker.dto.CompatibilityResult;
 import com.example.recipemaker.dto.RecipeRequest;
 import com.example.recipemaker.dto.RecipeResponse;
+import com.example.recipemaker.model.MealCourse;
+import com.example.recipemaker.model.MealType;
 import com.example.recipemaker.model.Recipe;
 import com.example.recipemaker.service.RecipeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,9 +26,13 @@ public class RecipeController {
     private final RecipeService recipeService;
 
     @GetMapping
-    @Operation(summary = "List all recipes")
-    public List<RecipeResponse> getAllRecipes() {
+    @Operation(summary = "List all recipes (optionally filter by mealCourse and mealType)")
+    public List<RecipeResponse> getAllRecipes(
+            @RequestParam(required = false) MealCourse mealCourse,
+            @RequestParam(required = false) MealType mealType) {
         return recipeService.getAllRecipes().stream()
+                .filter(r -> mealCourse == null || mealCourse.equals(r.getMealCourse()))
+                .filter(r -> mealType == null || mealType.equals(r.getMealType()))
                 .map(recipeService::toResponse)
                 .collect(Collectors.toList());
     }
@@ -38,15 +45,16 @@ public class RecipeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Create a recipe using the Builder pattern",
-            description = "Provide a main component ID (non-modifiable) and optional modifiable component IDs")
+    @PreAuthorize("hasAnyRole('DIETICIAN','ADMIN')")
+    @Operation(summary = "Create a recipe (Dietician/Admin only)")
     public RecipeResponse createRecipe(@RequestBody RecipeRequest request) {
         Recipe recipe = recipeService.createRecipe(request);
         return recipeService.toResponse(recipe);
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Update an existing recipe")
+    @PreAuthorize("hasAnyRole('DIETICIAN','ADMIN')")
+    @Operation(summary = "Update an existing recipe (Dietician/Admin only)")
     public RecipeResponse updateRecipe(@PathVariable Long id, @RequestBody RecipeRequest request) {
         Recipe recipe = recipeService.updateRecipe(id, request);
         return recipeService.toResponse(recipe);
@@ -54,23 +62,20 @@ public class RecipeController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete a recipe")
+    @PreAuthorize("hasAnyRole('DIETICIAN','ADMIN')")
+    @Operation(summary = "Delete a recipe (Dietician/Admin only)")
     public void deleteRecipe(@PathVariable Long id) {
         recipeService.deleteRecipe(id);
     }
 
     @PostMapping("/{id}/check-compatibility")
-    @Operation(summary = "Check recipe compatibility with patient conditions",
-            description = "Returns selectability of the recipe and each component. " +
-                    "If the main component is incompatible, the entire recipe is unselectable. " +
-                    "If a modifiable component is incompatible, only that component is unselectable.")
+    @Operation(summary = "Check recipe compatibility with patient conditions")
     public CompatibilityResult checkCompatibility(@PathVariable Long id, @RequestBody Set<Long> conditionIds) {
         return recipeService.checkCompatibility(id, conditionIds);
     }
 
     @GetMapping("/search")
-    @Operation(summary = "Search and filter recipes using Composite Strategy pattern",
-            description = "Filters are combined with AND logic. Omit a parameter to skip that filter.")
+    @Operation(summary = "Search and filter recipes using Composite Strategy pattern")
     public List<RecipeResponse> searchRecipes(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String componentName,

@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { componentRepository } from '../api/components';
 import { useComponents } from '../hooks/useComponents';
+import { useAuth } from '../context/AuthContext';
 
 export function ComponentsPage() {
   const { components, loading, error, refresh } = useComponents();
+  const { role } = useAuth();
+  const canManage = role === 'DIETICIAN' || role === 'ADMIN';
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -42,12 +45,14 @@ export function ComponentsPage() {
     <div className="page">
       <div className="page-header">
         <h2>Components</h2>
-        <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancel' : '+ Add Component'}
-        </button>
+        {canManage && (
+          <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : '+ Add Component'}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {canManage && showForm && (
         <form className="form inline-form" onSubmit={handleCreate}>
           <div className="form-row">
             <div className="form-group">
@@ -109,14 +114,16 @@ export function ComponentsPage() {
                   ? c.incompatibleConditions.map((ic: { name: string }) => ic.name).join(', ')
                   : '—'}
               </td>
-              <td>
-                <button
-                  className="btn btn-sm btn-danger"
-                  onClick={() => handleDelete(c.id, c.name)}
-                >
-                  Delete
-                </button>
-              </td>
+              {canManage && (
+                <td>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => handleDelete(c.id, c.name)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

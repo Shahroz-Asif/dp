@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { recipeRepository } from '../api/recipes';
 import { usePatientProfile } from '../context/PatientProfileContext';
+import { useAuth } from '../context/AuthContext';
 import type { RecipeResponse } from '../types/api';
 
 export function RecipeDetailPage() {
@@ -12,6 +13,8 @@ export function RecipeDetailPage() {
   const [loadingRecipe, setLoadingRecipe] = useState(true);
 
   const { profileConditions } = usePatientProfile();
+  const { role } = useAuth();
+  const canEdit = role === 'DIETICIAN' || role === 'ADMIN';
 
   useEffect(() => {
     if (!id) return;
@@ -50,14 +53,29 @@ export function RecipeDetailPage() {
     <div className="page">
       <div className="page-header">
         <h2>{recipe.name}</h2>
-        <div className="action-group">
-          <Link to={`/recipes/${id}/edit`} className="btn btn-secondary">
-            Edit
-          </Link>
-          <button onClick={handleDelete} className="btn btn-danger">
-            Delete
-          </button>
-        </div>
+        {canEdit && (
+          <div className="action-group">
+            <Link to={`/recipes/${id}/edit`} className="btn btn-secondary">
+              Edit
+            </Link>
+            <button onClick={handleDelete} className="btn btn-danger">
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="recipe-detail-badges">
+        {recipe.mealCourse && (
+          <span className={`meal-course-badge course-${recipe.mealCourse.toLowerCase()}`}>
+            {recipe.mealCourse}
+          </span>
+        )}
+        {recipe.mealType && (
+          <span className={`meal-type-badge type-${recipe.mealType.toLowerCase()}`}>
+            {recipe.mealType}
+          </span>
+        )}
       </div>
 
       {recipe.description && <p className="recipe-description">{recipe.description}</p>}

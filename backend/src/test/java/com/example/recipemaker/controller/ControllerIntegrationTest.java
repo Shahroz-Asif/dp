@@ -56,7 +56,7 @@ class ControllerIntegrationTest {
 
     // ── Recipe endpoints (authenticated) ─────────────────────────────
     @Nested
-    @WithMockUser(username = "admin", roles = "USER")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     class RecipeEndpoints {
 
         @Test
@@ -148,7 +148,7 @@ class ControllerIntegrationTest {
 
     // ── Component endpoints ──────────────────────────────────────────
     @Nested
-    @WithMockUser(username = "admin", roles = "USER")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     class ComponentEndpoints {
 
         @Test
@@ -169,7 +169,7 @@ class ControllerIntegrationTest {
 
     // ── Condition endpoints ──────────────────────────────────────────
     @Nested
-    @WithMockUser(username = "admin", roles = "USER")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     class ConditionEndpoints {
 
         @Test
@@ -203,7 +203,7 @@ class ControllerIntegrationTest {
 
     // ── Patient profile endpoints ────────────────────────────────────
     @Nested
-    @WithMockUser(username = "admin", roles = "USER")
+    @WithMockUser(username = "admin", roles = "ADMIN")
     class PatientEndpoints {
 
         @Test
