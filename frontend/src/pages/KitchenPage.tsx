@@ -66,7 +66,7 @@ export function KitchenPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Kitchen</h2>
+        <h2>👨‍🍳 Kitchen</h2>
         <button className="btn btn-secondary" onClick={load}>
           Refresh
         </button>

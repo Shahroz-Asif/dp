@@ -71,7 +71,7 @@ export function RecipeFormPage() {
 
   return (
     <div className="page">
-      <h2>{isEdit ? 'Edit Recipe' : 'New Recipe'}</h2>
+      <h2>{isEdit ? '✏️ Edit Recipe' : '✨ New Recipe'}</h2>
 
       <form className="form" onSubmit={handleSubmit}>
         <div className="form-group">

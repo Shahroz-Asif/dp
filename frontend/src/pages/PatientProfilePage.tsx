@@ -44,7 +44,7 @@ export function PatientProfilePage() {
     return (
       <div className="page">
         <div className="page-header">
-          <h2>My Health Profile</h2>
+          <h2>🏥 My Health Profile</h2>
         </div>
 
         <div className="profile-info-card">

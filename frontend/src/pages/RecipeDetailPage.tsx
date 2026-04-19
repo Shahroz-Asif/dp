@@ -5,6 +5,12 @@ import { usePatientProfile } from '../context/PatientProfileContext';
 import { useAuth } from '../context/AuthContext';
 import type { RecipeResponse } from '../types/api';
 
+const COURSE_ICONS: Record<string, string> = {
+  BREAKFAST: '🌅',
+  LUNCH: '☀️',
+  DINNER: '🌙',
+};
+
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -52,7 +58,7 @@ export function RecipeDetailPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>{recipe.name}</h2>
+        <h2>{recipe.mealCourse ? COURSE_ICONS[recipe.mealCourse] + ' ' : '🍽️ '}{recipe.name}</h2>
         {canEdit && (
           <div className="action-group">
             <Link to={`/recipes/${id}/edit`} className="btn btn-secondary">

@@ -10,6 +10,12 @@ import axios from 'axios';
 
 const COURSES: Array<'ALL' | MealCourse> = ['ALL', 'BREAKFAST', 'LUNCH', 'DINNER'];
 
+const COURSE_ICONS: Record<string, string> = {
+  BREAKFAST: '🌅',
+  LUNCH: '☀️',
+  DINNER: '🌙',
+};
+
 export function RecipeListPage() {
   const { recipes, loading, error } = useRecipes();
   const { profileConditions } = usePatientProfile();
@@ -60,7 +66,7 @@ export function RecipeListPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Menu</h2>
+        <h2>🍽️ Menu</h2>
         {(role === 'DIETICIAN' || role === 'ADMIN') && (
           <Link to="/recipes/new" className="btn btn-primary">
             + New Recipe
@@ -76,6 +82,7 @@ export function RecipeListPage() {
             className={`course-tab${courseFilter === course ? ' active' : ''}`}
             onClick={() => setCourseFilter(course)}
           >
+            {course !== 'ALL' && <span style={{ marginRight: '0.35rem' }}>{COURSE_ICONS[course]}</span>}
             {course === 'ALL' ? 'All Meals' : course.charAt(0) + course.slice(1).toLowerCase()}
           </button>
         ))}
@@ -85,13 +92,13 @@ export function RecipeListPage() {
       <div className="search-bar">
         <input
           type="search"
-          placeholder="Filter by recipe name…"
+          placeholder="🔍  Search by recipe name…"
           value={nameFilter}
           onChange={(e) => setNameFilter(e.target.value)}
         />
         <input
           type="search"
-          placeholder="Filter by component name…"
+          placeholder="🔍  Filter by component name…"
           value={componentFilter}
           onChange={(e) => setComponentFilter(e.target.value)}
         />
@@ -121,12 +128,14 @@ export function RecipeListPage() {
           {filtered.map((recipe) => {
             const compatible = profileConditions.length === 0 || isProfileCompatible(recipe);
             const thisOrderMsg = orderMsg?.id === recipe.id ? orderMsg : null;
+            const courseIcon = recipe.mealCourse ? COURSE_ICONS[recipe.mealCourse] : '🍽️';
 
             return (
               <div key={recipe.id} className="recipe-card recipe-card-block">
+                {/* Card top: icon + title + badge */}
                 <div className="recipe-card-title-row">
                   <Link to={`/recipes/${recipe.id}`} className="recipe-card-link">
-                    <h3>{recipe.name}</h3>
+                    <h3>{courseIcon} {recipe.name}</h3>
                   </Link>
                   {profileConditions.length > 0 && (
                     <span className={`badge ${compatible ? 'badge-ok' : 'badge-warn'}`}>
@@ -147,7 +156,7 @@ export function RecipeListPage() {
                 </div>
 
                 <div className="recipe-card-meta">
-                  <span>Main: {recipe.mainComponent.name}</span>
+                  <span>🥘 {recipe.mainComponent.name}</span>
                   <span>{recipe.modifiableComponents.length} optional</span>
                 </div>
 
@@ -163,7 +172,7 @@ export function RecipeListPage() {
                       disabled={!!orderingId}
                       onClick={() => handleOrder(recipe)}
                     >
-                      {orderingId === recipe.id ? 'Ordering…' : 'Order'}
+                      {orderingId === recipe.id ? 'Ordering…' : 'Order Now'}
                     </button>
                   </div>
                 )}
@@ -175,4 +184,3 @@ export function RecipeListPage() {
     </div>
   );
 }
-

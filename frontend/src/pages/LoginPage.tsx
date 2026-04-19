@@ -27,53 +27,74 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card">
-        <h1 className="login-title">RecipeMaker</h1>
-        <p className="login-subtitle">Hospital Meal System</p>
+      {/* Hero panel */}
+      <div className="login-page-hero">
+        <div className="login-hero-icon">🥗</div>
+        <h1 className="login-hero-title">RecipeMaker</h1>
+        <p className="login-hero-subtitle">
+          Personalised hospital meal planning — tailored to every patient's dietary needs.
+        </p>
+      </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <input
-              id="username"
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
+      {/* Form panel */}
+      <div className="login-panel">
+        <div className="login-card">
+          <div className="login-card-header">
+            <h2 className="login-title">Welcome back</h2>
+            <p className="login-subtitle">Sign in to your account to continue</p>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="username">Username</label>
+              <input
+                id="username"
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+
+            {error && <p className="error-msg">{error}</p>}
+
+            <button
+              type="submit"
+              className="btn btn-primary btn-full"
+              disabled={loading}
+              style={{ marginTop: '0.5rem', padding: '0.7rem 1.1rem', fontSize: '0.95rem' }}
+            >
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
+
+          <div className="login-demo-accounts">
+            <p className="login-hint">Demo accounts:</p>
+            <table className="login-demo-table">
+              <tbody>
+                <tr><td>admin / admin</td><td className="login-demo-role">Admin</td></tr>
+                <tr><td>doctor1 / doctor</td><td className="login-demo-role">Doctor</td></tr>
+                <tr><td>dietician1 / dietician</td><td className="login-demo-role">Dietician</td></tr>
+                <tr><td>patient1 / patient</td><td className="login-demo-role">Patient</td></tr>
+                <tr><td>kitchen / kitchen</td><td className="login-demo-role">Kitchen</td></tr>
+              </tbody>
+            </table>
           </div>
-
-          {error && <p className="error-msg">{error}</p>}
-
-          <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
-
-        <div className="login-demo-accounts">
-          <p className="login-hint">Demo accounts:</p>
-          <table className="login-demo-table">
-            <tbody>
-              <tr><td>admin / admin</td><td className="login-demo-role">Admin</td></tr>
-              <tr><td>doctor1 / doctor</td><td className="login-demo-role">Doctor</td></tr>
-              <tr><td>dietician1 / dietician</td><td className="login-demo-role">Dietician</td></tr>
-              <tr><td>patient1 / patient</td><td className="login-demo-role">Patient</td></tr>
-              <tr><td>kitchen / kitchen</td><td className="login-demo-role">Kitchen</td></tr>
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

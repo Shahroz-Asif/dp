@@ -62,7 +62,7 @@ export function DoctorPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>My Patients</h2>
+        <h2>👥 My Patients</h2>
       </div>
 
       {patients.length === 0 ? (

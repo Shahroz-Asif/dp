@@ -44,7 +44,7 @@ export function ComponentsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Components</h2>
+        <h2>🥗 Components</h2>
         {canManage && (
           <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : '+ Add Component'}

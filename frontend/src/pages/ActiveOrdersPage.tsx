@@ -36,7 +36,7 @@ export function ActiveOrdersPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>My Active Orders</h2>
+        <h2>📋 My Active Orders</h2>
       </div>
 
       {orders.length === 0 ? (

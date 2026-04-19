@@ -38,7 +38,7 @@ export function ConditionsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Patient Conditions</h2>
+        <h2>🩺 Patient Conditions</h2>
         {canManage && (
           <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancel' : '+ Add Condition'}

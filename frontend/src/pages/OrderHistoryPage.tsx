@@ -22,7 +22,7 @@ export function OrderHistoryPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h2>Order History</h2>
+        <h2>📜 Order History</h2>
       </div>
 
       {orders.length === 0 ? (
