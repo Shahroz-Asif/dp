@@ -1,4 +1,4 @@
-import type { RecipeResponse } from '../types/api';
+import type { MealType, RecipeResponse } from '../types/api';
 
 /**
  * Strategy Pattern (mirroring the backend's search package).
@@ -36,6 +36,15 @@ export class ComponentNameSearchStrategy implements RecipeSearchStrategy {
   }
 }
 
+/** Filters recipes by meal type (MAIN or SIDE) */
+export class MealTypeSearchStrategy implements RecipeSearchStrategy {
+  constructor(private readonly mealType: MealType) {}
+
+  matches(recipe: RecipeResponse): boolean {
+    return recipe.mealType === this.mealType;
+  }
+}
+
 // ─── Composite strategies ────────────────────────────────────────────────────
 
 /**
@@ -69,6 +78,7 @@ export class CompositeOrSearchStrategy implements RecipeSearchStrategy {
 export function buildAndStrategy(filters: {
   name?: string;
   componentName?: string;
+  mealType?: MealType;
 }): CompositeAndSearchStrategy {
   const strategies: RecipeSearchStrategy[] = [];
   if (filters.name?.trim()) {
@@ -76,6 +86,9 @@ export function buildAndStrategy(filters: {
   }
   if (filters.componentName?.trim()) {
     strategies.push(new ComponentNameSearchStrategy(filters.componentName.trim()));
+  }
+  if (filters.mealType) {
+    strategies.push(new MealTypeSearchStrategy(filters.mealType));
   }
   return new CompositeAndSearchStrategy(strategies);
 }

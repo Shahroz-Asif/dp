@@ -1,0 +1,306 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{titlesec}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{orange!80!black},
+  breaklines=true,
+  frame=single,
+  tabsize=2
+}
+
+\title{\textbf{Recipe Maker — Project Report}\\[0.4em]
+  \large Patient Meal Ordering with Component Customisation and Search Strategies}
+\author{Software Engineering — Academic Year 2025/2026}
+\date{4 May 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────────────────────
+\section{Project Overview}
+Recipe Maker is a full-stack hospital meal-management application built with
+\textbf{Spring Boot 3} (backend) and \textbf{React 18 + TypeScript} (frontend).
+It allows dieticians to define meal recipes composed of a mandatory
+\emph{main component} and zero or more optional \emph{modifiable components}.
+Doctors assign medical conditions to patient profiles, and the system enforces
+ingredient compatibility at ordering time so that a patient can never receive
+a component that conflicts with their conditions.
+
+\subsection{Technology Stack}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Layer} & \textbf{Technology} \\
+\midrule
+Backend      & Java 21, Spring Boot 3, Spring Security, JPA / Hibernate \\
+Database     & H2 in-memory (ddl-auto = update) \\
+Frontend     & React 18, TypeScript, Vite, React Router v6 \\
+API style    & REST (JSON), Springdoc / OpenAPI \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────
+\section{Domain Model}
+
+\subsection{Core Entities}
+\begin{itemize}[noitemsep]
+  \item \texttt{Recipe} — a meal with a course (BREAKFAST / LUNCH / DINNER), a type
+        (MAIN / SIDE), one \emph{non-modifiable} main component, and an optional
+        set of \emph{modifiable} components.
+  \item \texttt{RecipeComponent} — abstract JPA entity with single-table inheritance.
+        Concrete subtypes: \texttt{ModifiableComponent} and \texttt{NonModifiableComponent}.
+        Each component carries a \texttt{ManyToMany} relationship to
+        \texttt{PatientCondition} to express incompatibilities.
+  \item \texttt{PatientProfile} — linked to an \texttt{AppUser} with role
+        \texttt{PATIENT}; holds a set of \texttt{PatientCondition}s.
+  \item \texttt{MealOrder} — records a patient's order for a recipe together with
+        the specific modifiable components they chose.
+\end{itemize}
+
+\subsection{Component Incompatibility}
+The join table \texttt{component\_incompatibility} associates a
+\texttt{RecipeComponent} with one or more \texttt{PatientCondition}s.
+At ordering time the service validates that none of the patient's conditions
+appear in any selected component's incompatibility set.
+
+% ─────────────────────────────────────────────────────────────
+\section{Design Patterns}
+
+\subsection{Strategy Pattern — Recipe Search}
+Both the backend and the frontend implement the \emph{Strategy} pattern for
+recipe filtering.
+
+\subsubsection{Backend (\texttt{com.example.recipemaker.search})}
+\begin{itemize}[noitemsep]
+  \item \texttt{RecipeSearchStrategy} — interface with a single \texttt{matches(Recipe)} method.
+  \item \texttt{NameSearchStrategy} — case-insensitive substring match on recipe name.
+  \item \texttt{ComponentNameSearchStrategy} — matches if any component name contains the keyword.
+  \item \texttt{ConditionCompatibilityStrategy} — filters out recipes whose main component
+        conflicts with the patient's conditions.
+  \item \texttt{CompositeAndSearchStrategy} — combines strategies with AND semantics.
+  \item \texttt{CompositeOrSearchStrategy} — combines strategies with OR semantics.
+\end{itemize}
+
+\subsubsection{Frontend (\texttt{src/patterns/searchStrategy.ts})}
+The frontend mirrors the backend hierarchy so that the recipe list can be
+filtered client-side without extra round-trips:
+\begin{itemize}[noitemsep]
+  \item \texttt{RecipeSearchStrategy} (interface)
+  \item \texttt{NameSearchStrategy}
+  \item \texttt{ComponentNameSearchStrategy}
+  \item \texttt{MealTypeSearchStrategy} — \emph{newly added}; filters by MAIN or SIDE.
+  \item \texttt{CompositeAndSearchStrategy}
+  \item \texttt{CompositeOrSearchStrategy}
+\end{itemize}
+
+The factory function \texttt{buildAndStrategy(filters)} accepts \texttt{name},
+\texttt{componentName}, and the new \texttt{mealType} parameter, composes the
+appropriate leaf strategies, and returns a \texttt{CompositeAndSearchStrategy}.
+
+\subsection{Builder Pattern}
+\texttt{MealOrder}, \texttt{MealOrderResponse}, and other DTOs use Lombok's
+\texttt{@Builder} annotation.  The frontend mirrors this in
+\texttt{src/patterns/recipeRequestBuilder.ts}.
+
+\subsection{Repository Pattern}
+API access on the frontend is encapsulated in dedicated repository objects
+(\texttt{orderRepository}, \texttt{recipeRepository}, etc.) that expose typed
+async methods.  On the backend, Spring Data JPA repositories provide the same
+abstraction.
+
+% ─────────────────────────────────────────────────────────────
+\section{Feature: Modifiable Component Selection}
+
+\subsection{Motivation}
+Previously a patient could only order a recipe as a whole.  The updated system
+lets the patient \emph{choose} which optional (modifiable) components to include,
+while the system enforces that no selected component conflicts with any of the
+patient's medical conditions.
+
+\subsection{Backend Changes}
+
+\subsubsection{\texttt{MealOrder} entity}
+A new \texttt{ManyToMany} relationship stores the components the patient selected:
+
+\begin{lstlisting}[language=Java, caption={MealOrder.java — selectedComponents field}]
+@ManyToMany(fetch = FetchType.EAGER)
+@JoinTable(
+    name = "meal_order_selected_components",
+    joinColumns = @JoinColumn(name = "meal_order_id"),
+    inverseJoinColumns = @JoinColumn(name = "component_id")
+)
+@Builder.Default
+private Set<RecipeComponent> selectedComponents = new HashSet<>();
+\end{lstlisting}
+
+\subsubsection{\texttt{MealOrderRequest} DTO}
+\begin{lstlisting}[language=Java, caption={MealOrderRequest.java}]
+@Data
+public class MealOrderRequest {
+    private Long recipeId;
+    private List<Long> selectedComponentIds = Collections.emptyList();
+}
+\end{lstlisting}
+
+\subsubsection{\texttt{MealOrderResponse} DTO}
+A \texttt{List<ComponentResponse>} field named \texttt{selectedComponents} was
+added so consumers can display exactly what was ordered.
+
+\subsubsection{Validation in \texttt{MealOrderService.placeOrder()}}
+For each ID in \texttt{selectedComponentIds} the service verifies:
+\begin{enumerate}[noitemsep]
+  \item The component exists in the database.
+  \item It is a \texttt{ModifiableComponent} (not non-modifiable).
+  \item It belongs to the requested recipe's modifiable-component set.
+  \item None of its \texttt{incompatibleConditions} are present in the patient's profile.
+\end{enumerate}
+If any check fails, a \texttt{400 Bad Request} is returned with a descriptive
+message.
+
+\subsection{Frontend Changes}
+
+\subsubsection{Type updates (\texttt{src/types/api.ts})}
+\begin{lstlisting}[language=Java, caption={Updated TypeScript interfaces}]
+export interface MealOrderRequest {
+  recipeId: number;
+  selectedComponentIds: number[];
+}
+
+export interface MealOrderResponse {
+  // ... existing fields ...
+  selectedComponents: ComponentResponse[];
+}
+\end{lstlisting}
+
+\subsubsection{Inline component selector (\texttt{RecipeListPage.tsx})}
+When a patient clicks \emph{Order Now} on a recipe that has at least one
+modifiable component, an inline selector is displayed instead of immediately
+submitting:
+\begin{itemize}[noitemsep]
+  \item Each modifiable component is shown as a labelled checkbox.
+  \item Components whose \texttt{incompatibleConditionNames} intersect the
+        patient's profile conditions are \emph{disabled} and annotated with the
+        conflicting condition names.
+  \item Compatible components can be freely toggled.
+  \item \emph{Confirm Order} submits the order with the selected component IDs;
+        \emph{Cancel} dismisses the selector without ordering.
+  \item For recipes without modifiable components the order is submitted
+        immediately as before.
+\end{itemize}
+
+\subsubsection{Order display}
+Selected components are now shown in both \texttt{ActiveOrdersPage} and
+\texttt{OrderHistoryPage} below each order card.
+
+% ─────────────────────────────────────────────────────────────
+\section{Feature: Meal Type Filter}
+
+\subsection{Motivation}
+Recipes are categorised as either a \emph{main} dish or a \emph{side} dish
+(\texttt{MealType}: \texttt{MAIN} / \texttt{SIDE}).  There was previously no
+dedicated UI control to filter by this dimension.
+
+\subsection{Changes}
+
+\subsubsection{Strategy layer}
+A new \texttt{MealTypeSearchStrategy} class was added to
+\texttt{searchStrategy.ts}:
+
+\begin{lstlisting}[language=Java, caption={MealTypeSearchStrategy.ts}]
+export class MealTypeSearchStrategy implements RecipeSearchStrategy {
+  constructor(private readonly mealType: MealType) {}
+
+  matches(recipe: RecipeResponse): boolean {
+    return recipe.mealType === this.mealType;
+  }
+}
+\end{lstlisting}
+
+The \texttt{buildAndStrategy} factory was updated to accept an optional
+\texttt{mealType} parameter, and pushes a \texttt{MealTypeSearchStrategy} into
+the composite when a type is selected.
+
+\subsubsection{UI}
+A second row of tabs (All Types / Main / Side) was added directly below the
+existing meal-course tabs in \texttt{RecipeListPage.tsx}.  Selecting a type
+updates the \texttt{mealTypeFilter} state, which feeds into
+\texttt{buildAndStrategy}, causing the recipe grid to update immediately
+without a server round-trip.
+
+% ─────────────────────────────────────────────────────────────
+\section{Conflict Enforcement Summary}
+
+The following table summarises where conflict enforcement takes place:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Enforcement point} & \textbf{Layer} & \textbf{Effect} \\
+\midrule
+Recipe list badge          & Frontend & Shows ``Conflicts'' warning on recipe card \\
+Order Now button           & Frontend & Disabled when the whole recipe conflicts \\
+Component selector         & Frontend & Disables conflicting optional components \\
+\texttt{placeOrder()} validation & Backend & Returns 400 if a selected component conflicts \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────
+\section{API Endpoints}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Description} \\
+\midrule
+POST   & \texttt{/api/orders}          & Place order (Patient) \\
+GET    & \texttt{/api/orders/active}   & Active orders for current patient \\
+GET    & \texttt{/api/orders/history}  & Completed orders for current patient \\
+GET    & \texttt{/api/recipes}         & List all recipes \\
+GET    & \texttt{/api/recipes/\{id\}}  & Get single recipe \\
+GET    & \texttt{/api/components}      & List all components \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────
+\section{Security}
+All endpoints are secured with Spring Security.  Role-based access control is
+enforced via \texttt{@PreAuthorize} annotations:
+\begin{itemize}[noitemsep]
+  \item Only \texttt{PATIENT} role may place or view orders.
+  \item Only \texttt{DIETICIAN} / \texttt{ADMIN} may create or delete recipes and
+        components.
+  \item \texttt{DOCTOR} may manage patient conditions and profiles.
+  \item \texttt{KITCHEN} may advance order status.
+\end{itemize}
+Passwords are hashed with BCrypt.  CSRF is disabled (stateless JWT-style
+session via \texttt{HttpBasic}).
+
+% ─────────────────────────────────────────────────────────────
+\section{Conclusion}
+The Recipe Maker application now provides an end-to-end safe ordering workflow:
+patients select only the components they want, the frontend immediately disables
+incompatible options based on the loaded patient profile, and the backend
+independently re-validates every selection before persisting the order.  The
+search and filter system uses the Strategy pattern on both tiers, keeping the
+codebase extensible — adding a new filter criterion requires only a new
+leaf-strategy class and a one-line addition to \texttt{buildAndStrategy}.
+
+\end{document}

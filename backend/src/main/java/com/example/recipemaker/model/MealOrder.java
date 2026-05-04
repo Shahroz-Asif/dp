@@ -6,6 +6,8 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "meal_order")
@@ -37,6 +39,15 @@ public class MealOrder {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "meal_order_selected_components",
+        joinColumns = @JoinColumn(name = "meal_order_id"),
+        inverseJoinColumns = @JoinColumn(name = "component_id")
+    )
+    @Builder.Default
+    private Set<RecipeComponent> selectedComponents = new HashSet<>();
 
     @Builder.Default
     @Column(nullable = false)

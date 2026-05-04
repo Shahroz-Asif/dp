@@ -66,6 +66,8 @@ export interface UserResponse {
 /** Request body for POST /api/orders */
 export interface MealOrderRequest {
   recipeId: number;
+  /** IDs of the modifiable components the patient selected (empty = none) */
+  selectedComponentIds: number[];
 }
 
 /** Mirrors MealOrderResponse DTO */
@@ -80,6 +82,7 @@ export interface MealOrderResponse {
   status: OrderStatus;
   orderDate: string;
   createdAt: string;
+  selectedComponents: ComponentResponse[];
 }
 
 /** Request body for patient profile create/update */

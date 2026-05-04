@@ -1,11 +1,13 @@
 package com.example.recipemaker.service;
 
+import com.example.recipemaker.dto.ComponentResponse;
 import com.example.recipemaker.dto.MealOrderRequest;
 import com.example.recipemaker.dto.MealOrderResponse;
 import com.example.recipemaker.model.*;
 import com.example.recipemaker.repository.AppUserRepository;
 import com.example.recipemaker.repository.MealOrderRepository;
 import com.example.recipemaker.repository.PatientProfileRepository;
+import com.example.recipemaker.repository.RecipeComponentRepository;
 import com.example.recipemaker.repository.RecipeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,8 +18,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +32,7 @@ public class MealOrderService {
     private final MealOrderRepository orderRepository;
     private final PatientProfileRepository profileRepository;
     private final RecipeRepository recipeRepository;
+    private final RecipeComponentRepository componentRepository;
     private final AppUserRepository userRepository;
 
     private PatientProfile getCurrentPatientProfile() {
@@ -61,9 +66,36 @@ public class MealOrderService {
                             " meal for " + course.name().toLowerCase() + " today.");
         }
 
+        // Validate and resolve selected modifiable components
+        Set<RecipeComponent> allowedModifiable = recipe.getModifiableComponents();
+        Set<PatientCondition> patientConditions = patient.getConditions();
+        Set<RecipeComponent> selectedComponents = new HashSet<>();
+
+        for (Long compId : request.getSelectedComponentIds()) {
+            RecipeComponent comp = componentRepository.findById(compId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Component not found: " + compId));
+            if (!comp.isModifiable()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Component '" + comp.getName() + "' is not a modifiable component.");
+            }
+            if (!allowedModifiable.contains(comp)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Component '" + comp.getName() + "' does not belong to this recipe.");
+            }
+            for (PatientCondition cond : comp.getIncompatibleConditions()) {
+                if (patientConditions.contains(cond)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Component '" + comp.getName() + "' is incompatible with your condition: " + cond.getName());
+                }
+            }
+            selectedComponents.add(comp);
+        }
+
         MealOrder order = MealOrder.builder()
                 .patient(patient)
                 .recipe(recipe)
+                .selectedComponents(selectedComponents)
                 .status(OrderStatus.REQUESTED)
                 .orderDate(today)
                 .createdAt(LocalDateTime.now())
@@ -107,6 +139,19 @@ public class MealOrderService {
     public MealOrderResponse toResponse(MealOrder order) {
         Recipe recipe = order.getRecipe();
         PatientProfile patient = order.getPatient();
+
+        List<ComponentResponse> selectedComponents = order.getSelectedComponents().stream()
+                .map(c -> ComponentResponse.builder()
+                        .id(c.getId())
+                        .name(c.getName())
+                        .description(c.getDescription())
+                        .modifiable(c.isModifiable())
+                        .incompatibleConditionNames(c.getIncompatibleConditions().stream()
+                                .map(PatientCondition::getName)
+                                .collect(Collectors.toSet()))
+                        .build())
+                .collect(Collectors.toList());
+
         return MealOrderResponse.builder()
                 .id(order.getId())
                 .patientProfileId(patient.getId())
@@ -118,6 +163,7 @@ public class MealOrderService {
                 .status(order.getStatus())
                 .orderDate(order.getOrderDate())
                 .createdAt(order.getCreatedAt())
+                .selectedComponents(selectedComponents)
                 .build();
     }
 }

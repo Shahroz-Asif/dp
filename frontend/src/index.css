@@ -1030,6 +1030,57 @@ textarea { resize: vertical; }
   margin: 0.35rem 0 0;
 }
 
+.order-components {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.2rem 0 0;
+}
+
+.order-components-label {
+  font-weight: 600;
+  color: var(--text-secondary, var(--text));
+}
+
+/* ── Component selector (inline order customization) ────────── */
+.component-selector {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  background: var(--surface-alt, var(--surface));
+  margin-top: 0.5rem;
+}
+
+.component-selector-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.component-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+  cursor: pointer;
+}
+
+.component-selector-item.comp-incompatible {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.comp-conflict-hint {
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+
+.component-selector-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
 /* ── Kitchen view ─────────────────────────────────────────── */
 .kitchen-columns {
   display: grid;

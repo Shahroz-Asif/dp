@@ -41,7 +41,15 @@ export function OrderHistoryPage() {
           <tbody>
             {orders.map((order) => (
               <tr key={order.id}>
-                <td>{order.recipeName}</td>
+                <td>
+                  <div>{order.recipeName}</div>
+                  {order.selectedComponents && order.selectedComponents.length > 0 && (
+                    <div className="order-components">
+                      <span className="order-components-label">+ </span>
+                      {order.selectedComponents.map((c) => c.name).join(', ')}
+                    </div>
+                  )}
+                </td>
                 <td>
                   <span className={`meal-course-badge course-${order.mealCourse.toLowerCase()}`}>
                     {order.mealCourse}

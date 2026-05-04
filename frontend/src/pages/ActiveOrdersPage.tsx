@@ -62,6 +62,12 @@ export function ActiveOrdersPage() {
                 </span>
               </div>
               <p className="order-date">Ordered: {order.orderDate}</p>
+              {order.selectedComponents && order.selectedComponents.length > 0 && (
+                <p className="order-components">
+                  <span className="order-components-label">Optional components: </span>
+                  {order.selectedComponents.map((c) => c.name).join(', ')}
+                </p>
+              )}
             </div>
           ))}
         </div>

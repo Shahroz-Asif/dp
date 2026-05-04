@@ -1,0 +1,408 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{mdframed}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+
+\definecolor{cmdbg}{gray}{0.93}
+\lstdefinestyle{cmd}{
+  backgroundcolor=\color{cmdbg},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  frameround=tttt,
+  framesep=4pt,
+  xleftmargin=6pt,
+  xrightmargin=6pt,
+}
+\lstset{style=cmd}
+
+\newmdenv[
+  backgroundcolor=yellow!15,
+  linecolor=orange!70!black,
+  linewidth=1pt,
+  frametitle={\small\textbf{Note}},
+  frametitlefont=\bfseries\small,
+  innertopmargin=6pt,
+  innerbottommargin=6pt,
+]{note}
+
+\title{\textbf{Recipe Maker — Windows Setup Guide}\\[0.4em]
+  \large Step-by-step instructions to run the full application on Windows}
+\author{Software Engineering — Academic Year 2025/2026}
+\date{4 May 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────────────────────
+\section{Prerequisites}
+
+The following software must be installed on your Windows machine before
+attempting to run the project.  All tools listed below are free.
+
+\subsection{Required Software}
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Tool} & \textbf{Min.\ version} & \textbf{Purpose} & \textbf{Download URL} \\
+\midrule
+JDK (Java) & 21 & Backend runtime / compiler &
+  \href{https://adoptium.net}{adoptium.net} \\
+Node.js    & 20 LTS & Frontend runtime / npm &
+  \href{https://nodejs.org}{nodejs.org} \\
+Git        & 2.x & Clone the repository &
+  \href{https://git-scm.com}{git-scm.com} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{note}
+Maven is \textbf{not} required to be installed globally.  The project ships with
+the Maven Wrapper (\texttt{mvnw.cmd}) which downloads the correct Maven version
+automatically on first use.
+\end{note}
+
+\subsection{Recommended (Optional)}
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Visual Studio Code} (\href{https://code.visualstudio.com}{code.visualstudio.com})
+        with the \emph{Extension Pack for Java} and \emph{ES7+ React/Redux/React-Native snippets}.
+  \item \textbf{IntelliJ IDEA Community} (\href{https://www.jetbrains.com/idea}{jetbrains.com/idea})
+        for a richer Java development experience.
+  \item \textbf{Windows Terminal} for a modern command-line experience.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────
+\section{Installing the Prerequisites}
+
+\subsection{Java 21 (JDK)}
+\begin{enumerate}[noitemsep]
+  \item Open \url{https://adoptium.net} in your browser.
+  \item Select \textbf{Temurin 21 (LTS)}, OS: \emph{Windows}, Architecture: \emph{x64}.
+  \item Download the \texttt{.msi} installer and run it.
+  \item On the installer's \emph{Custom Setup} screen, make sure
+        \textbf{Set JAVA\_HOME} and \textbf{Add to PATH} are both enabled (they
+        are by default).
+  \item After installation, open a new \textbf{Command Prompt} or
+        \textbf{PowerShell} window and verify:
+\begin{lstlisting}
+java -version
+\end{lstlisting}
+        Expected output (version number may differ in the minor digits):
+\begin{lstlisting}
+openjdk version "21.x.x" ...
+\end{lstlisting}
+\end{enumerate}
+
+\subsection{Node.js 20 LTS}
+\begin{enumerate}[noitemsep]
+  \item Open \url{https://nodejs.org} and download the \textbf{LTS} installer
+        for Windows (\texttt{.msi}).
+  \item Run the installer and accept all defaults.  Ensure \emph{Add to PATH}
+        is checked.
+  \item Verify the installation:
+\begin{lstlisting}
+node --version
+npm --version
+\end{lstlisting}
+        Both commands should return a version number without errors.
+\end{enumerate}
+
+\subsection{Git}
+\begin{enumerate}[noitemsep]
+  \item Download the installer from \url{https://git-scm.com/download/win}.
+  \item Run the installer.  The defaults are suitable; click \emph{Next}
+        through all screens.
+  \item Verify:
+\begin{lstlisting}
+git --version
+\end{lstlisting}
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────
+\section{Obtaining the Source Code}
+
+Open a \textbf{Command Prompt} or \textbf{PowerShell} window and navigate to
+the directory where you want to place the project, then clone the repository:
+
+\begin{lstlisting}
+cd C:\Users\YourName\Projects
+git clone <repository-url> recipe_maker
+cd recipe_maker
+\end{lstlisting}
+
+Replace \texttt{<repository-url>} with the actual Git remote URL (HTTPS or
+SSH) provided by your team or institution.
+
+If you already have the project as a ZIP archive, extract it and
+\texttt{cd} into the extracted folder instead.
+
+% ─────────────────────────────────────────────────────────────
+\section{Project Structure}
+
+After cloning, the top-level layout is:
+
+\begin{lstlisting}
+recipe_maker/
+  backend/          <- Spring Boot application (Java 21, Maven)
+    mvnw.cmd        <- Maven Wrapper for Windows
+    pom.xml         <- Maven build descriptor
+    src/
+  frontend/         <- React 18 + TypeScript + Vite application
+    package.json
+    vite.config.ts
+    src/
+  Dockerfile
+  PROJECT_REPORT.tex
+  SETUP_WINDOWS.tex <- this document
+\end{lstlisting}
+
+The backend exposes its REST API on \textbf{port 8081}.  The frontend
+development server runs on \textbf{port 5173} and proxies all
+\texttt{/api/**} requests to the backend automatically.
+
+% ─────────────────────────────────────────────────────────────
+\section{Running the Backend}
+
+Open a \textbf{Command Prompt} or \textbf{PowerShell} window.
+
+\subsection{Navigate to the backend directory}
+\begin{lstlisting}
+cd C:\Users\YourName\Projects\recipe_maker\backend
+\end{lstlisting}
+
+\subsection{Start the Spring Boot application}
+\begin{lstlisting}
+mvnw.cmd spring-boot:run
+\end{lstlisting}
+
+\begin{note}
+On first run, Maven will download all dependencies from the internet
+(\textasciitilde{}100--200 MB).  Subsequent starts are much faster because
+the artifacts are cached in \texttt{C:\textbackslash Users\textbackslash
+YourName\textbackslash .m2\textbackslash repository}.
+\end{note}
+
+The application is ready when you see a log line similar to:
+\begin{lstlisting}
+Started RecipeMakerApplication in X.XXX seconds
+\end{lstlisting}
+
+\subsection{Verify the backend}
+Open a browser and go to:
+\begin{itemize}[noitemsep]
+  \item \url{http://localhost:8081/swagger-ui.html} — interactive API
+        documentation (Swagger UI).
+  \item \url{http://localhost:8081/h2-console} — H2 in-memory database
+        console.  JDBC URL: \texttt{jdbc:h2:mem:recipemaker}, username:
+        \texttt{sa}, password: \emph{(empty)}.
+\end{itemize}
+
+\subsection{Running the tests (optional)}
+\begin{lstlisting}
+mvnw.cmd test
+\end{lstlisting}
+Test reports are written to
+\texttt{backend\textbackslash target\textbackslash surefire-reports\textbackslash}.
+
+% ─────────────────────────────────────────────────────────────
+\section{Running the Frontend}
+
+Open a \textbf{second} Command Prompt or PowerShell window (keep the backend
+running in the first one).
+
+\subsection{Navigate to the frontend directory}
+\begin{lstlisting}
+cd C:\Users\YourName\Projects\recipe_maker\frontend
+\end{lstlisting}
+
+\subsection{Install dependencies (first time only)}
+\begin{lstlisting}
+npm install
+\end{lstlisting}
+
+This downloads all Node.js packages listed in \texttt{package.json} into a
+local \texttt{node\_modules} folder (\textasciitilde{}150--250 MB).
+
+\subsection{Start the development server}
+\begin{lstlisting}
+npm run dev
+\end{lstlisting}
+
+Expected output:
+\begin{lstlisting}
+  VITE v5.x.x  ready in XXX ms
+
+  Local:   http://localhost:5173/
+  Network: use --host to expose
+\end{lstlisting}
+
+Open \url{http://localhost:5173} in your browser to access the application.
+
+\subsection{Building for production (optional)}
+\begin{lstlisting}
+npm run build
+\end{lstlisting}
+
+Static files are written to \texttt{frontend\textbackslash dist\textbackslash}.
+
+% ─────────────────────────────────────────────────────────────
+\section{Default Accounts}
+
+The backend seeds several demo accounts on startup.  Use any of the
+following credentials to log in:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Username} & \textbf{Password} & \textbf{Role} \\
+\midrule
+\texttt{admin}    & \texttt{admin}    & ADMIN \\
+\texttt{doctor1}  & \texttt{password} & DOCTOR \\
+\texttt{dietician1} & \texttt{password} & DIETICIAN \\
+\texttt{patient1} & \texttt{password} & PATIENT \\
+\texttt{kitchen1} & \texttt{password} & KITCHEN \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{note}
+Because the database is in-memory (\texttt{H2 mem}), all data is lost when
+the backend process stops.  Seed data is re-inserted automatically on the
+next startup.
+\end{note}
+
+% ─────────────────────────────────────────────────────────────
+\section{Startup Sequence Summary}
+
+Always start the services in this order:
+
+\begin{enumerate}
+  \item \textbf{Backend first} — Spring Boot must be running before the
+        frontend can make API calls.
+  \item \textbf{Frontend second} — Vite dev server proxies API calls to the
+        backend.
+\end{enumerate}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Terminal} & \textbf{Directory} & \textbf{Command} \\
+\midrule
+1 (backend)  & \texttt{recipe\_maker\textbackslash backend}  & \texttt{mvnw.cmd spring-boot:run} \\
+2 (frontend) & \texttt{recipe\_maker\textbackslash frontend} & \texttt{npm run dev} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────
+\section{Ports and URLs Reference}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Service} & \textbf{URL} & \textbf{Notes} \\
+\midrule
+Frontend (dev)   & \url{http://localhost:5173}              & Main app UI \\
+Backend API      & \url{http://localhost:8081/api}          & REST endpoints \\
+Swagger UI       & \url{http://localhost:8081/swagger-ui.html} & API explorer \\
+OpenAPI JSON     & \url{http://localhost:8081/v3/api-docs}  & Raw spec \\
+H2 Console       & \url{http://localhost:8081/h2-console}   & DB browser \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────
+\section{Troubleshooting}
+
+\subsection{\texttt{mvnw.cmd} is not recognised}
+Ensure you are inside the \texttt{backend} directory.  The wrapper script
+must be executed from there.  Also confirm Java 21 is on the PATH:
+\begin{lstlisting}
+java -version
+\end{lstlisting}
+
+\subsection{Port 8081 already in use}
+Another process is occupying the port.  Find and stop it:
+\begin{lstlisting}
+netstat -ano | findstr :8081
+taskkill /PID <PID> /F
+\end{lstlisting}
+Alternatively, change the backend port in
+\texttt{backend\textbackslash src\textbackslash main\textbackslash resources\textbackslash
+application.properties}:
+\begin{lstlisting}
+server.port=9090
+\end{lstlisting}
+and update \texttt{vite.config.ts} accordingly:
+\begin{lstlisting}[language=Java]
+proxy: {
+  '/api': { target: 'http://localhost:9090', changeOrigin: true }
+}
+\end{lstlisting}
+
+\subsection{Port 5173 already in use}
+Vite will automatically try the next available port and print the actual URL.
+Alternatively specify a port explicitly:
+\begin{lstlisting}
+npm run dev -- --port 5174
+\end{lstlisting}
+
+\subsection{\texttt{npm install} fails with network errors}
+If you are behind a corporate proxy, configure npm to use it:
+\begin{lstlisting}
+npm config set proxy http://proxy.company.com:PORT
+npm config set https-proxy http://proxy.company.com:PORT
+\end{lstlisting}
+For Maven, create or edit
+\texttt{C:\textbackslash Users\textbackslash YourName\textbackslash
+.m2\textbackslash settings.xml} and add a \texttt{<proxies>} section
+following the official Maven proxy guide.
+
+\subsection{CORS or 401 errors in the browser}
+Ensure the backend is running before loading the frontend, and that you are
+accessing the app via \texttt{http://localhost:5173} (not via a file path).
+The Vite proxy only works for requests made from the dev server origin.
+
+\subsection{Execution Policy error running \texttt{mvnw.cmd}}
+If PowerShell blocks the script, use \textbf{Command Prompt} (\texttt{cmd.exe})
+instead, or run:
+\begin{lstlisting}
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+\end{lstlisting}
+
+% ─────────────────────────────────────────────────────────────
+\section{Firewall and Antivirus}
+Windows Defender may prompt to allow network access for Java and Node.js.
+Click \emph{Allow access} for both when prompted.  No inbound firewall rules
+are needed for local development.
+
+% ─────────────────────────────────────────────────────────────
+\section{Quick-Start Checklist}
+
+\begin{itemize}
+  \item[$\square$] JDK 21 installed and \texttt{java -version} returns 21.x.x
+  \item[$\square$] Node.js 20 LTS installed and \texttt{node --version} returns 20.x.x
+  \item[$\square$] Git installed and repository cloned
+  \item[$\square$] Terminal 1: \texttt{cd backend} then \texttt{mvnw.cmd spring-boot:run}
+  \item[$\square$] Backend log shows ``Started RecipeMakerApplication''
+  \item[$\square$] Terminal 2: \texttt{cd frontend} then \texttt{npm install} (first time)
+  \item[$\square$] Terminal 2: \texttt{npm run dev}
+  \item[$\square$] Browser open at \url{http://localhost:5173}
+  \item[$\square$] Log in with \texttt{admin} / \texttt{admin}
+\end{itemize}
+
+\end{document}
