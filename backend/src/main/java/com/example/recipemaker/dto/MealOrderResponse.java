@@ -23,6 +23,5 @@ public class MealOrderResponse {
     private OrderStatus status;
     private LocalDate orderDate;
     private LocalDateTime createdAt;
-    /** The modifiable components the patient selected for this order */
     private List<ComponentResponse> selectedComponents;
 }

@@ -66,7 +66,6 @@ public class MealOrderService {
                             " meal for " + course.name().toLowerCase() + " today.");
         }
 
-        // Validate and resolve selected modifiable components
         Set<RecipeComponent> allowedModifiable = recipe.getModifiableComponents();
         Set<PatientCondition> patientConditions = patient.getConditions();
         Set<RecipeComponent> selectedComponents = new HashSet<>();
