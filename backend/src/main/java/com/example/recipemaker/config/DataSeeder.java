@@ -204,54 +204,63 @@ public class DataSeeder implements CommandLineRunner {
                 .name("Grilled Chicken & Broccoli").mealCourse(MealCourse.LUNCH).mealType(MealType.MAIN)
                 .description("Lean grilled chicken with steamed broccoli. Safe for most dietary restrictions.")
                 .mainComponent(grilledChicken).modifiableComponents(Set.of(steamedBroccoli, tomatoSauce))
+                .imageUrl("https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Creamy Pasta Alfredo").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Wheat pasta with cream sauce and parmesan. Contains gluten and dairy.")
                 .mainComponent(pastaBase).modifiableComponents(Set.of(creamSauce, cheeseTopping))
+                .imageUrl("https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Pasta Marinara").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Wheat pasta with tomato basil sauce. Contains gluten but no dairy.")
                 .mainComponent(pastaBase).modifiableComponents(Set.of(tomatoSauce, steamedBroccoli))
+                .imageUrl("https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Salmon Power Bowl").mealCourse(MealCourse.LUNCH).mealType(MealType.MAIN)
                 .description("Baked salmon with rice, honey glaze, and walnut crumble.")
                 .mainComponent(salmonFillet).modifiableComponents(Set.of(honeyGlaze, walnutCrumble, steamedBroccoli))
+                .imageUrl("https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Teriyaki Rice Bowl").mealCourse(MealCourse.LUNCH).mealType(MealType.MAIN)
                 .description("Steamed rice with soy sauce and broccoli.")
                 .mainComponent(riceBowlBase).modifiableComponents(Set.of(soySauce, steamedBroccoli))
+                .imageUrl("https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Chicken Comfort Plate").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Grilled chicken with mashed potatoes and honey glaze.")
                 .mainComponent(grilledChicken).modifiableComponents(Set.of(mashedPotato, honeyGlaze))
+                .imageUrl("https://images.unsplash.com/photo-1432139509613-5c4255815697?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Classic Pancake Breakfast").mealCourse(MealCourse.BREAKFAST).mealType(MealType.MAIN)
                 .description("Buttermilk pancakes with maple syrup and fresh berries.")
                 .mainComponent(pancakeBase).modifiableComponents(Set.of(mapleSyrup, freshBerries))
+                .imageUrl("https://images.unsplash.com/photo-1528207776546-365bb710ee93?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Simple Baked Salmon").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Baked salmon with steamed broccoli and tomato sauce. Safe for all conditions.")
                 .mainComponent(salmonFillet).modifiableComponents(Set.of(steamedBroccoli, tomatoSauce))
+                .imageUrl("https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Chicken & Rice").mealCourse(MealCourse.DINNER).mealType(MealType.MAIN)
                 .description("Simple grilled chicken with steamed rice.")
                 .mainComponent(grilledChicken).modifiableComponents(Set.of(soySauce, tomatoSauce))
+                .imageUrl("https://images.unsplash.com/photo-1598103442097-8b74394b95c3?w=600&q=80")
                 .createdBy(dietician).build());
 
         // === Recipes (SIDE meals) ===
@@ -259,36 +268,42 @@ public class DataSeeder implements CommandLineRunner {
                 .name("Garden Side Salad").mealCourse(MealCourse.LUNCH).mealType(MealType.SIDE)
                 .description("Fresh garden salad with lemon herb dressing.")
                 .mainComponent(gardenSalad).modifiableComponents(Set.of(lemonDressing))
+                .imageUrl("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Garden Salad Dinner Side").mealCourse(MealCourse.DINNER).mealType(MealType.SIDE)
                 .description("Fresh garden salad with lemon herb dressing, perfect as a dinner side.")
                 .mainComponent(gardenSalad).modifiableComponents(Set.of(lemonDressing))
+                .imageUrl("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Vegetable Soup Side").mealCourse(MealCourse.LUNCH).mealType(MealType.SIDE)
                 .description("Light clear vegetable soup — warming and safe for all conditions.")
                 .mainComponent(vegSoup).modifiableComponents(Set.of())
+                .imageUrl("https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Vegetable Soup Dinner Side").mealCourse(MealCourse.DINNER).mealType(MealType.SIDE)
                 .description("Light clear vegetable soup for dinner.")
                 .mainComponent(vegSoup).modifiableComponents(Set.of())
+                .imageUrl("https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Yogurt Berry Parfait").mealCourse(MealCourse.BREAKFAST).mealType(MealType.SIDE)
                 .description("Creamy Greek yogurt with fresh mixed berries. Contains dairy.")
                 .mainComponent(yogurtBase).modifiableComponents(Set.of(freshBerries, mapleSyrup))
+                .imageUrl("https://images.unsplash.com/photo-1488477181946-6428a0291777?w=600&q=80")
                 .createdBy(dietician).build());
 
         recipeRepo.save(Recipe.builder()
                 .name("Steamed Broccoli Side").mealCourse(MealCourse.DINNER).mealType(MealType.SIDE)
                 .description("Simple steamed broccoli florets. Safe for all conditions.")
                 .mainComponent(gardenSalad).modifiableComponents(Set.of(steamedBroccoli))
+                .imageUrl("https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?w=600&q=80")
                 .createdBy(dietician).build());
     }
 }

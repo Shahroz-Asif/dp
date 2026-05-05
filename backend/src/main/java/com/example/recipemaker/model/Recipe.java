@@ -18,6 +18,7 @@ public class Recipe {
 
     private String name;
     private String description;
+    private String imageUrl;
 
     @Enumerated(EnumType.STRING)
     private MealCourse mealCourse;

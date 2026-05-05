@@ -12,6 +12,7 @@ public class RecipeResponse {
     private Long id;
     private String name;
     private String description;
+    private String imageUrl;
     private MealCourse mealCourse;
     private MealType mealType;
     private String createdByUsername;

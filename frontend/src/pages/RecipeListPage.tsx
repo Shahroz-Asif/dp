@@ -5,6 +5,7 @@ import { buildAndStrategy } from '../patterns/searchStrategy';
 import { usePatientProfile } from '../context/PatientProfileContext';
 import { useAuth } from '../context/AuthContext';
 import { orderRepository } from '../api/orders';
+import { PlaceOrderModal } from '../components/PlaceOrderModal';
 import type { MealCourse, RecipeResponse } from '../types/api';
 import axios from 'axios';
 
@@ -24,12 +25,14 @@ export function RecipeListPage() {
   const [nameFilter, setNameFilter] = useState('');
   const [componentFilter, setComponentFilter] = useState('');
   const [profileFilterOn, setProfileFilterOn] = useState(false);
-  const [orderingId, setOrderingId] = useState<number | null>(null);
   const [orderMsg, setOrderMsg] = useState<{ id: number; type: 'ok' | 'err'; text: string } | null>(null);
+  const [orderModal, setOrderModal] = useState<RecipeResponse | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const strategy = buildAndStrategy({ name: nameFilter, componentName: componentFilter });
   const profileConditionNames = new Set(profileConditions.map((c) => c.name));
 
+  /** Full recipe incompatibility: any component (main or optional) conflicts. Used for the badge. */
   const isProfileCompatible = (recipe: RecipeResponse) => {
     const allComponents = [recipe.mainComponent, ...recipe.modifiableComponents];
     return allComponents.every((comp) =>
@@ -37,28 +40,36 @@ export function RecipeListPage() {
     );
   };
 
+  /** Only the main component matters for whether the order can be placed at all. */
+  const isMainCompatible = (recipe: RecipeResponse) =>
+    recipe.mainComponent.incompatibleConditionNames.every(
+      (condName) => !profileConditionNames.has(condName)
+    );
+
   let filtered = recipes
     .filter((r) => courseFilter === 'ALL' || r.mealCourse === courseFilter)
     .filter((r) => strategy.matches(r));
 
   if (profileFilterOn && profileConditions.length > 0) {
-    filtered = filtered.filter(isProfileCompatible);
+    filtered = filtered.filter(isMainCompatible);
   }
 
-  const handleOrder = async (recipe: RecipeResponse) => {
-    setOrderingId(recipe.id);
-    setOrderMsg(null);
+  const handleOrder = async (selectedComponentIds: number[]) => {
+    if (!orderModal) return;
+    setSubmitting(true);
     try {
-      await orderRepository.placeOrder({ recipeId: recipe.id, selectedComponentIds: [] });
-      setOrderMsg({ id: recipe.id, type: 'ok', text: 'Order placed!' });
+      await orderRepository.placeOrder({ recipeId: orderModal.id, selectedComponentIds });
+      setOrderMsg({ id: orderModal.id, type: 'ok', text: 'Order placed!' });
+      setOrderModal(null);
     } catch (err) {
       const msg =
         axios.isAxiosError(err) && err.response?.data?.message
           ? err.response.data.message
           : 'Could not place order.';
-      setOrderMsg({ id: recipe.id, type: 'err', text: msg });
+      setOrderMsg({ id: orderModal.id, type: 'err', text: msg });
+      setOrderModal(null);
     } finally {
-      setOrderingId(null);
+      setSubmitting(false);
     }
   };
 
@@ -123,17 +134,24 @@ export function RecipeListPage() {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+          {filtered.length === 0 ? (
         <p className="empty-state">No recipes match your filters.</p>
       ) : (
         <div className="recipe-grid">
           {filtered.map((recipe) => {
             const compatible = profileConditions.length === 0 || isProfileCompatible(recipe);
+            const canOrder = profileConditions.length === 0 || isMainCompatible(recipe);
             const thisOrderMsg = orderMsg?.id === recipe.id ? orderMsg : null;
             const courseIcon = recipe.mealCourse ? COURSE_ICONS[recipe.mealCourse] : '🍽️';
 
             return (
               <div key={recipe.id} className="recipe-card recipe-card-block">
+                {/* Recipe image */}
+                {recipe.imageUrl && (
+                  <div className="recipe-card-image">
+                    <img src={recipe.imageUrl} alt={recipe.name} loading="lazy" />
+                  </div>
+                )}
                 {/* Card top: icon + title + badge */}
                 <div className="recipe-card-title-row">
                   <Link to={`/recipes/${recipe.id}`} className="recipe-card-link">
@@ -169,16 +187,19 @@ export function RecipeListPage() {
                         {thisOrderMsg.text}
                       </p>
                     )}
-                    {!compatible && profileConditions.length > 0 && (
-                      <p className="order-error">Cannot order — conflicts with your profile.</p>
+                    {!canOrder && profileConditions.length > 0 && (
+                      <p className="order-error">Cannot order — main dish conflicts with your profile.</p>
+                    )}
+                    {!compatible && canOrder && profileConditions.length > 0 && (
+                      <p className="order-warn">Some optional add-ons are unavailable for your profile.</p>
                     )}
                     <button
                       className="btn btn-primary btn-sm"
-                      disabled={!!orderingId || (!compatible && profileConditions.length > 0)}
-                      title={!compatible && profileConditions.length > 0 ? 'This recipe contains ingredients that conflict with your medical profile' : undefined}
-                      onClick={() => handleOrder(recipe)}
+                      disabled={!canOrder && profileConditions.length > 0}
+                      title={!canOrder && profileConditions.length > 0 ? 'Main ingredient conflicts with your medical profile' : undefined}
+                      onClick={() => { setOrderMsg(null); setOrderModal(recipe); }}
                     >
-                      {orderingId === recipe.id ? 'Ordering…' : 'Order Now'}
+                      Order Now
                     </button>
                   </div>
                 )}
@@ -186,6 +207,16 @@ export function RecipeListPage() {
             );
           })}
         </div>
+      )}
+
+      {orderModal && (
+        <PlaceOrderModal
+          recipe={orderModal}
+          patientConditionNames={profileConditionNames}
+          onConfirm={handleOrder}
+          onCancel={() => setOrderModal(null)}
+          submitting={submitting}
+        />
       )}
     </div>
   );

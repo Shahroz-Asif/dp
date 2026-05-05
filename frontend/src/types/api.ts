@@ -19,6 +19,7 @@ export interface RecipeResponse {
   id: number;
   name: string;
   description: string;
+  imageUrl?: string;
   mainComponent: ComponentResponse;
   modifiableComponents: ComponentResponse[];
   mealCourse: MealCourse;

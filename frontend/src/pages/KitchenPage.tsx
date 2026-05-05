@@ -100,6 +100,12 @@ export function KitchenPage() {
                         {order.mealType}
                       </span>
                     </div>
+                    {order.selectedComponents && order.selectedComponents.length > 0 && (
+                      <p className="order-components">
+                        <span className="order-components-label">Add-ons: </span>
+                        {order.selectedComponents.map((c) => c.name).join(', ')}
+                      </p>
+                    )}
                     {NEXT_ACTION[order.status] && (
                       <button
                         className="btn btn-primary btn-sm kitchen-advance-btn"

@@ -74,6 +74,16 @@ public class MealOrderService {
         Set<PatientCondition> patientConditions = patient.getConditions();
         Set<RecipeComponent> selectedComponents = new HashSet<>();
 
+        // Validate main component compatibility
+        RecipeComponent mainComponent = recipe.getMainComponent();
+        for (PatientCondition cond : mainComponent.getIncompatibleConditions()) {
+            if (patientConditions.contains(cond)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Main component '" + mainComponent.getName() +
+                                "' is incompatible with your condition: " + cond.getName());
+            }
+        }
+
         for (Long compId : request.getSelectedComponentIds()) {
             RecipeComponent comp = componentRepository.findById(compId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,

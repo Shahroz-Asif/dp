@@ -183,6 +183,7 @@ public class RecipeService {
                 .mealCourse(recipe.getMealCourse())
                 .mealType(recipe.getMealType())
                 .createdByUsername(recipe.getCreatedBy() != null ? recipe.getCreatedBy().getUsername() : null)
+                .imageUrl(recipe.getImageUrl())
                 .mainComponent(recipe.getMainComponent() != null ? toComponentResponse(recipe.getMainComponent()) : null)
                 .modifiableComponents(recipe.getModifiableComponents().stream()
                         .map(this::toComponentResponse)
