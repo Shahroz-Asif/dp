@@ -101,3 +101,13 @@ export interface PatientProfileResponse {
   assignedDoctorUsername?: string;
   conditions: PatientCondition[];
 }
+
+/** Mirrors NotificationResponse DTO */
+export interface NotificationResponse {
+  id: number;
+  message: string;
+  type: 'ORDER_PLACED' | 'STATUS_UPDATED';
+  orderId: number;
+  read: boolean;
+  createdAt: string;
+}

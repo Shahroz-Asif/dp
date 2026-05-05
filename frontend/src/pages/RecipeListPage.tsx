@@ -49,7 +49,7 @@ export function RecipeListPage() {
     setOrderingId(recipe.id);
     setOrderMsg(null);
     try {
-      await orderRepository.placeOrder({ recipeId: recipe.id });
+      await orderRepository.placeOrder({ recipeId: recipe.id, selectedComponentIds: [] });
       setOrderMsg({ id: recipe.id, type: 'ok', text: 'Order placed!' });
     } catch (err) {
       const msg =

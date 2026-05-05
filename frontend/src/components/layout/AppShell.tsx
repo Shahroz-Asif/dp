@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { NotificationBell } from '../NotificationBell';
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
@@ -131,6 +132,9 @@ export function AppShell() {
       </nav>
 
       <main className="main-content">
+        <div className="main-content-topbar">
+          <NotificationBell />
+        </div>
         <Outlet />
       </main>
     </div>

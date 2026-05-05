@@ -12,11 +12,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -29,6 +31,7 @@ class ControllerIntegrationTest {
     @Autowired RecipeRepository recipeRepo;
     @Autowired RecipeComponentRepository componentRepo;
     @Autowired PatientConditionRepository conditionRepo;
+    @Autowired NotificationRepository notificationRepo;
 
     private Long celiacId;
     private Long lactoseId;
@@ -238,4 +241,179 @@ class ControllerIntegrationTest {
                     .andExpect(status().isCreated());
         }
     }
+
+    // ── Meal Order endpoints (Patient) ────────────────────────────────
+    @Nested
+    @WithMockUser(username = "patient2", roles = "PATIENT")
+    class MealOrderEndpoints {
+
+        private long safeRecipeId() {
+            return recipeRepo.findAll().stream()
+                    .filter(r -> r.getName().equals("Grilled Chicken & Broccoli"))
+                    .findFirst().orElseThrow().getId();
+        }
+
+        @Test
+        void placeOrderReturnsCreated() throws Exception {
+            String json = String.format("{\"recipeId\":%d,\"selectedComponentIds\":[]}", safeRecipeId());
+            mockMvc.perform(post("/api/orders")
+                            .contentType(MediaType.APPLICATION_JSON).content(json))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.recipeName").value("Grilled Chicken & Broccoli"))
+                    .andExpect(jsonPath("$.status").value("REQUESTED"))
+                    .andExpect(jsonPath("$.patientName").value("Bob Jones"));
+        }
+
+        @Test
+        void activeOrdersEndpointReturnsOk() throws Exception {
+            mockMvc.perform(get("/api/orders/active"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void orderHistoryEndpointReturnsOk() throws Exception {
+            mockMvc.perform(get("/api/orders/history"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void nonPatientCannotPlaceOrder() throws Exception {
+            // Simulate a KITCHEN user trying to place an order
+            String json = String.format("{\"recipeId\":%d,\"selectedComponentIds\":[]}", safeRecipeId());
+            mockMvc.perform(post("/api/orders")
+                            .with(httpBasic("kitchen", "kitchen"))
+                            .contentType(MediaType.APPLICATION_JSON).content(json))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    // ── Kitchen endpoints ─────────────────────────────────────────────
+    @Nested
+    class KitchenEndpoints {
+
+        @Test
+        @WithMockUser(username = "kitchen", roles = "KITCHEN")
+        void getActiveOrdersAsKitchen() throws Exception {
+            mockMvc.perform(get("/api/kitchen/orders"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @WithMockUser(username = "admin", roles = "ADMIN")
+        void getActiveOrdersAsAdmin() throws Exception {
+            mockMvc.perform(get("/api/kitchen/orders"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @WithMockUser(username = "patient2", roles = "PATIENT")
+        void patientCannotAccessKitchenView() throws Exception {
+            mockMvc.perform(get("/api/kitchen/orders"))
+                    .andExpect(status().isForbidden());
+        }
+
+        /**
+         * Place an order as patient2 (real HTTP Basic auth so the transaction
+         * actually commits and the order is visible to kitchen), then advance it.
+         * Uses real credentials so the full request/response cycle exercises
+         * SecurityConfig, MealOrderService, and KitchenController together.
+         */
+        @Test
+        void placeOrderThenAdvanceStatusAsKitchen() throws Exception {
+            long recipeId = recipeRepo.findAll().stream()
+                    .filter(r -> r.getName().equals("Simple Baked Salmon"))
+                    .findFirst().orElseThrow().getId();
+
+            // patient2 places an order (transaction commits)
+            String placeJson = String.format("{\"recipeId\":%d,\"selectedComponentIds\":[]}", recipeId);
+            MvcResult placed = mockMvc.perform(post("/api/orders")
+                            .with(httpBasic("patient2", "patient"))
+                            .contentType(MediaType.APPLICATION_JSON).content(placeJson))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+
+            Long orderId = objectMapper.readTree(placed.getResponse().getContentAsString()).get("id").asLong();
+
+            // kitchen advances to PREPARING
+            mockMvc.perform(put("/api/kitchen/orders/" + orderId + "/advance")
+                            .with(httpBasic("kitchen", "kitchen")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("PREPARING"));
+        }
+    }
+
+    // ── Notification endpoints ────────────────────────────────────────
+    @Nested
+    class NotificationEndpoints {
+
+        @Test
+        @WithMockUser(username = "kitchen", roles = "KITCHEN")
+        void getNotificationsReturnsOk() throws Exception {
+            mockMvc.perform(get("/api/notifications"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @WithMockUser(username = "patient2", roles = "PATIENT")
+        void patientCanFetchTheirNotifications() throws Exception {
+            mockMvc.perform(get("/api/notifications"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray());
+        }
+
+        @Test
+        void unauthenticatedCannotAccessNotifications() throws Exception {
+            mockMvc.perform(get("/api/notifications"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @WithMockUser(username = "kitchen", roles = "KITCHEN")
+        void markAllReadReturnsNoContent() throws Exception {
+            mockMvc.perform(put("/api/notifications/read-all"))
+                    .andExpect(status().isOk());
+        }
+
+        /**
+         * End-to-end: patient places an order → kitchen gets a notification →
+         * kitchen marks it as read.  This exercises the notification REST
+         * endpoints against data produced by the Observer pattern.
+         *
+         * Uses patient1 (celiac + lactoseIntolerance) with a recipe safe for those
+         * conditions so no conflict with orders placed by other tests.
+         */
+        @Test
+        void placeOrderCreatesNotificationForKitchen() throws Exception {
+            // Count existing unread for kitchen
+            long before = notificationRepo.countByRecipientUsernameAndReadFalse("kitchen");
+
+            // patient1 places a DINNER/MAIN order — "Simple Baked Salmon" is safe for celiac+lactose
+            long recipeId = recipeRepo.findAll().stream()
+                    .filter(r -> r.getName().equals("Simple Baked Salmon"))
+                    .findFirst().orElseThrow().getId();
+            mockMvc.perform(post("/api/orders")
+                            .with(httpBasic("patient1", "patient"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(String.format("{\"recipeId\":%d,\"selectedComponentIds\":[]}", recipeId)))
+                    .andExpect(status().isCreated());
+
+            // kitchen queries its notifications and should see at least one more
+            MvcResult result = mockMvc.perform(get("/api/notifications")
+                            .with(httpBasic("kitchen", "kitchen")))
+                    .andExpect(status().isOk())
+                    .andReturn();
+
+            long after = notificationRepo.countByRecipientUsernameAndReadFalse("kitchen");
+            assertTrue(after > before, "Kitchen must have received at least one new notification");
+
+            // kitchen marks the newest notification as read via PUT /{id}/read
+            Long notifId = objectMapper.readTree(result.getResponse().getContentAsString())
+                    .get(0).get("id").asLong();
+            mockMvc.perform(put("/api/notifications/" + notifId + "/read")
+                            .with(httpBasic("kitchen", "kitchen")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.read").value(true));
+        }
+    }
 }
+

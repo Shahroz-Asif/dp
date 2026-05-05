@@ -31,6 +31,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
+                // WebSocket SockJS handshake endpoints
+                .requestMatchers("/ws/**").permitAll()
                 // Static frontend assets and SPA routes must be publicly accessible
                 .requestMatchers("/", "/index.html", "/login", "/assets/**", "/*.js", "/*.css",
                                  "/*.ico", "/*.png", "/*.svg", "/*.webmanifest").permitAll()

@@ -3,6 +3,8 @@ package com.example.recipemaker.service;
 import com.example.recipemaker.dto.ComponentResponse;
 import com.example.recipemaker.dto.MealOrderRequest;
 import com.example.recipemaker.dto.MealOrderResponse;
+import com.example.recipemaker.event.OrderPlacedEvent;
+import com.example.recipemaker.event.OrderStatusChangedEvent;
 import com.example.recipemaker.model.*;
 import com.example.recipemaker.repository.AppUserRepository;
 import com.example.recipemaker.repository.MealOrderRepository;
@@ -10,6 +12,7 @@ import com.example.recipemaker.repository.PatientProfileRepository;
 import com.example.recipemaker.repository.RecipeComponentRepository;
 import com.example.recipemaker.repository.RecipeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ public class MealOrderService {
     private final RecipeRepository recipeRepository;
     private final RecipeComponentRepository componentRepository;
     private final AppUserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private PatientProfile getCurrentPatientProfile() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -100,7 +104,10 @@ public class MealOrderService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return toResponse(orderRepository.save(order));
+        MealOrder saved = orderRepository.save(order);
+        // Publish event — NotificationService (Observer) will fire AFTER this transaction commits
+        eventPublisher.publishEvent(new OrderPlacedEvent(this, saved));
+        return toResponse(saved);
     }
 
     public List<MealOrderResponse> getActiveOrdersForCurrentPatient() {
@@ -124,7 +131,8 @@ public class MealOrderService {
         MealOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
 
-        OrderStatus next = switch (order.getStatus()) {
+        OrderStatus fromStatus = order.getStatus();
+        OrderStatus next = switch (fromStatus) {
             case REQUESTED -> OrderStatus.PREPARING;
             case PREPARING -> OrderStatus.READY;
             case READY -> OrderStatus.DONE;
@@ -132,7 +140,9 @@ public class MealOrderService {
         };
 
         order.setStatus(next);
-        return toResponse(orderRepository.save(order));
+        MealOrder saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(this, saved, fromStatus));
+        return toResponse(saved);
     }
 
     public MealOrderResponse toResponse(MealOrder order) {
