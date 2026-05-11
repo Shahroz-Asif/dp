@@ -1,0 +1,38 @@
+services:
+
+  # ── PostgreSQL database ──────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: recipemaker
+      POSTGRES_USER: recipemaker
+      POSTGRES_PASSWORD: recipemaker
+    volumes:
+      # Persist data on the host so destroying the container does not lose it
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recipemaker -d recipemaker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── Spring Boot + React app ──────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/recipemaker
+      DATABASE_USERNAME: recipemaker
+      DATABASE_PASSWORD: recipemaker
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

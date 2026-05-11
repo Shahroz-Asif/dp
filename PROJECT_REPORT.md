@@ -30,10 +30,12 @@
 | Version        | `0.0.1-SNAPSHOT`                   |
 | Backend        | Spring Boot 3.2.5 / Java 21        |
 | Frontend       | React 18 / TypeScript 5            |
-| Database       | H2 (in-memory, dev/test)           |
+| Database       | PostgreSQL 16 (runtime); H2 (tests only) |
 | Auth           | HTTP Basic (bcrypt-hashed)         |
+| Realtime       | STOMP over WebSocket (SockJS)      |
 | API Style      | RESTful JSON                       |
 | API Docs       | OpenAPI 3 / Swagger UI             |
+| Deployment     | Docker Compose (app + db)          |
 
 ---
 
@@ -48,7 +50,9 @@
 | **Spring Web MVC**               | REST controller layer                             |
 | **Spring Data JPA + Hibernate**  | ORM, repository abstraction, DDL management       |
 | **Spring Security**              | Authentication, authorization, password encoding  |
-| **H2 Database**                  | Embedded in-memory relational database            |
+| **PostgreSQL 16**                | Persistent relational database (runtime)          |
+| **H2 Database**                  | In-memory database for tests only                 |
+| **Spring WebSocket + STOMP**     | Real-time push notifications over WebSocket       |
 | **Lombok**                       | Boilerplate reduction (`@Data`, `@Builder`, etc.) |
 | **JJWT 0.11.5**                  | JWT library (provisioned for token upgrade path)  |
 | **SpringDoc OpenAPI 2.5.0**      | Auto-generated Swagger UI at `/swagger-ui.html`   |
@@ -60,14 +64,12 @@
 |-------------------------|-----------------------------------------------------------|
 | **React 18**            | Component-based UI library with concurrent rendering      |
 | **TypeScript 5**        | Static typing across the entire frontend codebase         |
-| **Vite**                | Build tool and dev server (HMR, fast cold starts)         |
+| **Vite 5.2**            | Build tool and dev server (HMR, fast cold starts)         |
 | **React Router v6**     | Client-side routing with nested route layouts             |
-| **Axios**               | HTTP client for REST API communication                    |
-| **TanStack Query v5**   | Server-state management, caching, and background syncing  |
-| **Tailwind CSS v3**     | Utility-first styling with a consistent design system     |
-| **shadcn/ui**           | Accessible, composable UI component primitives            |
-| **React Hook Form**     | Performant form management with minimal re-renders        |
-| **Zod**                 | Runtime schema validation for form inputs and API shapes  |
+| **Axios 1.x**           | HTTP client for REST API communication                    |
+| **@stomp/stompjs v7**   | STOMP protocol client for WebSocket messaging             |
+| **sockjs-client 1.6**   | WebSocket transport with automatic fallback               |
+| **Custom CSS**          | Hand-crafted responsive stylesheet (`index.css`)          |
 
 ---
 
@@ -78,6 +80,7 @@
 │                    Browser / Client                 │
 │                                                     │
 │   React 18 + TypeScript   (Vite dev server :5173)   │
+│         STOMP/SockJS WebSocket client                │
 │   ┌──────────┐  ┌────────────┐  ┌───────────────┐  │
 │   │  Pages   │  │ Components │  │  API Layer    │  │
 │   │ (Router) │  │ (shadcn/ui)│  │  (Axios +     │  │
@@ -86,7 +89,7 @@
 └─────────────────────────────────────────┼───────────┘
                           HTTP Basic Auth │ JSON REST
 ┌─────────────────────────────────────────┼───────────┐
-│                Spring Boot :8080        │           │
+│                Spring Boot :8081        │           │
 │   ┌──────────────────────────┐          │           │
 │   │  Spring Security Filter  │◄─────────┘           │
 │   └────────────┬─────────────┘                      │
@@ -107,8 +110,10 @@
 │   └────────────┬─────────────┘                      │
 │                │                                     │
 │   ┌────────────▼─────────────┐                      │
-│   │  H2 In-Memory Database   │                      │
+│   │  PostgreSQL 16 Database  │                      │
 │   └──────────────────────────┘                      │
+│                                                     │
+│ (Tests use H2 in-memory — no external DB required)  │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -147,7 +152,7 @@ AppUser ─────────────── PatientProfile
 | `RecipeComponent`       | `id`, `name`, `description`, `incompatibleConditions`            | Abstract; single-table inheritance             |
 | `ModifiableComponent`   | (inherits RecipeComponent)                                       | Optional sub-components in a recipe            |
 | `NonModifiableComponent`| (inherits RecipeComponent)                                       | Required main component of a recipe            |
-| `Recipe`                | `id`, `name`, `description`, `mainComponent`, `modifiableComponents` | Built via `RecipeBuilder`                  |
+| `Recipe`                | `id`, `name`, `description`, `course`, `mealType`, `imageUrl`, `mainComponent`, `modifiableComponents` | Built via `RecipeBuilder` |
 
 ### API Endpoints
 
@@ -157,7 +162,8 @@ All endpoints require HTTP Basic authentication unless marked **Public**.
 
 | Method | Path                  | Auth   | Description                            |
 |--------|-----------------------|--------|----------------------------------------|
-| `POST` | `/api/auth/register`  | Public | Register a new user (role: `USER`)     |
+| `POST` | `/api/auth/register`  | Public | Register a new user; body: `{username, password, role}` (DOCTOR/DIETICIAN/PATIENT/KITCHEN); returns `UserResponse` JSON; 409 on duplicate username |
+| `GET`  | `/api/auth/me`        | Any    | Returns current authenticated user info |
 
 #### Recipes — `/api/recipes`
 
@@ -204,14 +210,47 @@ All endpoints require HTTP Basic authentication unless marked **Public**.
 | `PUT`    | `/api/patients/{id}`  | Update profile            |
 | `DELETE` | `/api/patients/{id}`  | Delete profile            |
 
+#### Meal Orders — `/api/orders`
+
+| Method | Path                   | Auth     | Description                                          |
+|--------|------------------------|----------|------------------------------------------------------|
+| `POST` | `/api/orders`          | PATIENT  | Place a meal order with selected component IDs       |
+| `GET`  | `/api/orders/active`   | PATIENT  | Get active orders for the current patient            |
+| `GET`  | `/api/orders/history`  | PATIENT  | Get completed orders for the current patient         |
+
+#### Kitchen — `/api/kitchen`
+
+| Method | Path                          | Auth            | Description                              |
+|--------|-------------------------------|-----------------|------------------------------------------|
+| `GET`  | `/api/kitchen/orders`         | KITCHEN / ADMIN | List all active orders across all patients |
+| `PUT`  | `/api/kitchen/orders/{id}/advance` | KITCHEN / ADMIN | Advance order status: `REQUESTED → PREPARING → READY → DONE` |
+
+#### Doctor — `/api/doctor`
+
+| Method   | Path                                               | Auth           | Description                           |
+|----------|----------------------------------------------------|----------------|---------------------------------------|
+| `GET`    | `/api/doctor/patients`                             | DOCTOR / ADMIN | List patients visible to this doctor  |
+| `POST`   | `/api/doctor/patients/{patientId}/conditions/{conditionId}` | DOCTOR / ADMIN | Assign a condition to a patient |
+| `DELETE` | `/api/doctor/patients/{patientId}/conditions/{conditionId}` | DOCTOR / ADMIN | Remove a condition from a patient |
+
+#### Notifications — `/api/notifications`
+
+| Method | Path                         | Auth | Description                                  |
+|--------|------------------------------|------|----------------------------------------------|
+| `GET`  | `/api/notifications`         | Any  | Get all notifications for the current user   |
+| `PUT`  | `/api/notifications/{id}/read` | Any | Mark a single notification as read          |
+| `PUT`  | `/api/notifications/read-all`| Any  | Mark all notifications for the current user as read |
+
 ### Security
 
 - **Mechanism**: HTTP Basic Authentication over every secured route
 - **Password storage**: BCrypt via Spring Security's `BCryptPasswordEncoder`
-- **Public routes**: `/api/auth/**`, `/swagger-ui/**`, `/v3/api-docs/**`, `/h2-console/**`
+- **Public routes**: `/api/auth/**`, `/swagger-ui/**`, `/v3/api-docs/**`
 - **CSRF**: Disabled (stateless REST API)
+- **Role-based access**: `@PreAuthorize` enforced per endpoint; PATIENT/DOCTOR/DIETICIAN/KITCHEN/ADMIN roles (ADMIN not registerable via UI)
+- **Registration**: `POST /api/auth/register` is public; enforces role allow-list; returns 409 on duplicate username
 - **JWT provisioned**: `jjwt-api/impl/jackson 0.11.5` are present on the classpath; a filter-chain upgrade to Bearer token auth is the natural next step
-- **User storage**: `AppUser` entity in H2, loaded via `UserDetailsServiceImpl`
+- **User storage**: `AppUser` entity in PostgreSQL (H2 for tests), loaded via `UserDetailsServiceImpl`
 
 ### Design Patterns
 
@@ -252,9 +291,22 @@ RecipeSearchStrategy (interface: boolean matches(Recipe))
 
 `RecipeService.searchRecipes()` builds a `CompositeAndSearchStrategy` from whichever filter parameters are provided, then applies it to the full recipe list.
 
+#### Observer Pattern — `OrderEventObserver`
+
+Order lifecycle events are broadcast to registered observers without coupling the `MealOrderService` to downstream logic:
+
+```java
+public interface OrderEventObserver {
+    void onOrderPlaced(MealOrder order);
+    void onOrderStatusAdvanced(MealOrder order, OrderStatus fromStatus);
+}
+```
+
+`NotificationService` implements `OrderEventObserver` and creates persistent `Notification` records (and pushes them via WebSocket) when an order is placed or its status changes. Adding a new observer (e.g., email dispatch) requires only implementing the interface and registering it — `MealOrderService` needs no modification.
+
 #### Repository Pattern
 
-Five `JpaRepository` interfaces (`RecipeRepository`, `RecipeComponentRepository`, `PatientConditionRepository`, `PatientProfileRepository`, `AppUserRepository`) fully abstract all data access, leaving the service layer decoupled from persistence details.
+Six `JpaRepository` interfaces (`RecipeRepository`, `RecipeComponentRepository`, `PatientConditionRepository`, `PatientProfileRepository`, `AppUserRepository`, `MealOrderRepository`) fully abstract all data access, leaving the service layer decoupled from persistence details.
 
 #### Single-Table Inheritance (JPA)
 
@@ -274,7 +326,11 @@ Five `JpaRepository` interfaces (`RecipeRepository`, `RecipeComponentRepository`
 
 **Data seeding** (`DataSeeder`):
 
-On first startup, 5 patient conditions, 15 recipe components, and 8 recipes are seeded to enable immediate exploration. The seeder is idempotent (guards on `conditionRepo.count() > 0`).
+On first startup, 5 patient conditions, 15 recipe components, **15 recipes** (each with an Unsplash image URL), 6 pre-created users, and 2 patient profiles are seeded. The seeder is idempotent — it guards on `userRepo.count() > 0` so it never re-seeds after the first run, making it safe with persistent PostgreSQL storage.
+
+**Main-component compatibility check** (`MealOrderService.placeOrder`):
+
+Before processing any optional components the service validates that the recipe's non-modifiable main component is not contraindicated by any of the patient's conditions. If it is, a `400 Bad Request` is returned immediately, regardless of optional component selection.
 
 ---
 
@@ -285,71 +341,69 @@ On first startup, 5 patient conditions, 15 recipe components, and 8 recipes are 
 The frontend is a single-page application built with **React 18** and **TypeScript 5**, bundled by **Vite** for near-instant hot-module replacement during development.
 
 | Layer              | Library / Tool         | Version  | Purpose                                          |
-|--------------------|------------------------|----------|--------------------------------------------------|
-| UI Framework       | React                  | 18.x     | Component tree, concurrent rendering, Suspense   |
-| Language           | TypeScript             | 5.x      | End-to-end static typing                         |
-| Build Tool         | Vite                   | 5.x      | Dev server (HMR), production bundling (Rollup)   |
+|--------------------|------------------------|----------|-------------------------------------------------|
+| UI Framework       | React                  | 18.3     | Component tree, concurrent rendering             |
+| Language           | TypeScript             | 5.4      | End-to-end static typing                         |
+| Build Tool         | Vite                   | 5.2      | Dev server (HMR), production bundling (Rollup)   |
 | Routing            | React Router           | 6.x      | Declarative nested routes, `<Outlet>` layouts    |
-| HTTP Client        | Axios                  | 1.x      | Interceptors for Basic Auth header injection      |
-| Server State       | TanStack Query         | 5.x      | Query caching, invalidation, loading/error states|
-| Styling            | Tailwind CSS           | 3.x      | Utility-first CSS; purged for production         |
-| Component Library  | shadcn/ui              | latest   | Radix-UI-based accessible primitives (Dialog, Table, Badge, etc.) |
-| Forms              | React Hook Form        | 7.x      | Uncontrolled form fields, minimal re-renders     |
-| Validation         | Zod                    | 3.x      | Schema validation for forms and API response shapes |
-| Icons              | Lucide React           | latest   | Consistent SVG icon set                          |
+| HTTP Client        | Axios                  | 1.7      | Interceptors for Basic Auth header injection     |
+| WebSocket          | @stomp/stompjs         | 7.3      | STOMP protocol over WebSocket for push notifications |
+| WS Transport       | sockjs-client          | 1.6      | WebSocket with automatic long-polling fallback   |
+| Styling            | Custom CSS             | —        | Hand-crafted responsive stylesheet (`index.css`) |
 
 ### Application Structure
 
 ```
 frontend/
-├── public/
-│   └── favicon.ico
 ├── src/
 │   ├── api/
-│   │   ├── axiosClient.ts         # Axios instance; injects Basic Auth header
+│   │   ├── client.ts              # Axios instance; injects Basic Auth header
 │   │   ├── recipes.ts             # Recipe CRUD + search + compatibility calls
 │   │   ├── components.ts          # Component CRUD calls
 │   │   ├── conditions.ts          # Condition CRUD calls
-│   │   └── patients.ts            # Patient profile CRUD calls
+│   │   ├── patients.ts            # Patient profile CRUD calls
+│   │   ├── orders.ts              # Meal order placement + history calls
+│   │   ├── kitchen.ts             # Kitchen order management calls
+│   │   ├── doctor.ts              # Doctor patient/condition management calls
+│   │   └── notifications.ts       # Notification fetch + mark-read calls
 │   ├── hooks/
-│   │   ├── useRecipes.ts          # TanStack Query hooks for recipe endpoints
-│   │   ├── useComponents.ts
-│   │   ├── useConditions.ts
-│   │   └── usePatients.ts
+│   │   ├── useRecipes.ts          # Recipe data hooks
+│   │   ├── useComponents.ts       # Component data hooks
+│   │   └── useConditions.ts       # Condition data hooks
 │   ├── pages/
-│   │   ├── LoginPage.tsx          # HTTP Basic credential collection
-│   │   ├── RecipeListPage.tsx     # Paginated recipe browser with search bar
-│   │   ├── RecipeDetailPage.tsx   # Recipe view + compatibility checker
+│   │   ├── LoginPage.tsx          # HTTP Basic credential form + "Create Account" modal
+│   │   ├── RecipeListPage.tsx     # Recipe browser: images, search, PlaceOrderModal
+│   │   ├── RecipeDetailPage.tsx   # Recipe detail + compatibility checker
 │   │   ├── RecipeFormPage.tsx     # Create / edit recipe form
 │   │   ├── ComponentsPage.tsx     # Component management table
 │   │   ├── ConditionsPage.tsx     # Condition management table
-│   │   └── PatientsPage.tsx       # Patient profile management
+│   │   ├── PatientProfilePage.tsx # Patient's own profile view
+│   │   ├── ActiveOrdersPage.tsx   # Patient's in-flight orders
+│   │   ├── OrderHistoryPage.tsx   # Patient's completed order history
+│   │   ├── KitchenPage.tsx        # Kitchen queue + advance-status controls
+│   │   └── DoctorPage.tsx         # Doctor's patient list + condition assignment
 │   ├── components/
 │   │   ├── layout/
-│   │   │   ├── AppShell.tsx       # Sidebar nav + topbar wrapper
-│   │   │   └── PrivateRoute.tsx   # Redirects to /login if unauthenticated
-│   │   ├── recipes/
-│   │   │   ├── RecipeCard.tsx     # Summary card used in list view
-│   │   │   ├── RecipeSearchBar.tsx  # Name / component / condition filters
-│   │   │   └── CompatibilityPanel.tsx  # Condition multi-select + result display
-│   │   ├── shared/
-│   │   │   ├── DataTable.tsx      # Generic sortable table built on shadcn/ui
-│   │   │   ├── ConfirmDialog.tsx  # Delete confirmation modal
-│   │   │   └── StatusBadge.tsx    # Selectable / Incompatible / Unknown badges
-│   │   └── forms/
-│   │       ├── RecipeForm.tsx     # Zod-validated form for Recipe
-│   │       ├── ComponentForm.tsx
-│   │       ├── ConditionForm.tsx
-│   │       └── PatientForm.tsx
+│   │   │   └── AppShell.tsx       # Sidebar nav + topbar wrapper
+│   │   ├── PrivateRoute.tsx        # Redirects to /login if unauthenticated
+│   │   ├── PlaceOrderModal.tsx     # Component-selection modal for ordering
+│   │   ├── RegisterModal.tsx       # Self-registration dialog (from login page)
+│   │   ├── NotificationBell.tsx    # Bell icon with unread count + dropdown
+│   │   └── StatusBadge.tsx         # Selectable / Incompatible status badges
 │   ├── context/
-│   │   └── AuthContext.tsx        # Stores credentials; provides useAuth() hook
+│   │   ├── AuthContext.tsx         # Stores credentials; provides useAuth()
+│   │   ├── PatientProfileContext.tsx # Lazy-loads patient profile for PATIENT role
+│   │   └── NotificationContext.tsx  # STOMP/SockJS WebSocket connection + message queue
+│   ├── patterns/
+│   │   ├── searchStrategy.ts       # Frontend Strategy pattern mirroring backend search
+│   │   └── recipeRequestBuilder.ts # Builder pattern for recipe request DTOs
 │   ├── types/
-│   │   └── api.ts                 # TypeScript interfaces mirroring backend DTOs
-│   ├── App.tsx                    # Route definitions
-│   └── main.tsx                   # React DOM entry, QueryClientProvider
+│   │   └── api.ts                  # TypeScript interfaces mirroring backend DTOs
+│   ├── App.tsx                     # Route definitions
+│   ├── main.tsx                    # React DOM entry point
+│   └── index.css                   # Global responsive stylesheet
 ├── index.html
-├── vite.config.ts                 # Proxy /api → http://localhost:8080
-├── tailwind.config.ts
+├── vite.config.ts                  # Proxy /api + /ws → http://localhost:8081
 └── tsconfig.json
 ```
 
@@ -357,31 +411,29 @@ frontend/
 
 #### Login Page (`/login`)
 
-- Accepts `username` and `password` via React Hook Form controlled by Zod schema
+- Accepts `username` and `password` via a plain controlled form
 - On submit, stores credentials in `AuthContext` (in-memory; no localStorage persistence of raw passwords)
-- Performs a test `GET /api/recipes` call to validate credentials before redirecting
+- Performs a validation `GET /api/auth/me` call before redirecting
 - Protected pages redirect here via `PrivateRoute` when credentials are absent
+- **"Create Account" button** opens `RegisterModal`, allowing new users to self-register; on success the new credentials are auto-submitted to log in immediately
 
 #### Recipe List Page (`/recipes`)
 
-- Fetches all recipes via `useRecipes()` (TanStack Query, stale-while-revalidate)
-- **Search bar** with three optional fields that call `GET /api/recipes/search`:
-  - Recipe name keyword
-  - Component name keyword
-  - Condition multi-select (all loaded conditions from `useConditions()`)
-- Results rendered as `RecipeCard` grid with recipe name, description, component counts, and a "View" link
-- "New Recipe" button navigates to the create form
-- Empty state with instructional illustration when no results match
+- Fetches all recipes via `useRecipes()` (Axios + React state)
+- Each recipe card shows a **full-width image banner** (from the `imageUrl` field, served via Unsplash CDN)
+- **Search bar** with name keyword, component name keyword, and meal-type/course tabs; filtering is performed client-side via the `CompositeAndSearchStrategy`
+- **"Order Now"** button (PATIENT role): opens `PlaceOrderModal` showing optional components as checkboxes; components incompatible with the patient's conditions are disabled with a warning tag; main-component incompatibility shows a card-level warning and disables the button
+- **Compatibility badge**: red "Conflicts" ribbon when the recipe's main component conflicts with the logged-in patient's conditions
+- "New Recipe" / "Edit" / "Delete" action buttons visible to DIETICIAN/ADMIN roles
 
 #### Recipe Detail Page (`/recipes/:id`)
 
 - Fetches recipe with `GET /api/recipes/{id}`
-- Displays main component (highlighted) and all modifiable components as a list with badges indicating their modifiable status
-- **Compatibility Panel**: multi-select of available conditions; on submit calls `POST /api/recipes/{id}/check-compatibility`
-  - Overall recipe selectability shown with a prominent colored banner
-  - Per-component compatibility result rendered in an expandable table
-  - Incompatible conditions named explicitly in the reason string
-- Edit / Delete action buttons; Delete triggers `ConfirmDialog`
+- Displays main component (highlighted) and all modifiable components with type badges
+- **Compatibility Panel**: multi-select of available conditions; calls `POST /api/recipes/{id}/check-compatibility`
+  - Overall recipe selectability shown with a colored banner
+  - Per-component breakdown with incompatible condition names
+- Edit / Delete action buttons (DIETICIAN / ADMIN roles)
 
 #### Recipe Form Page (`/recipes/new`, `/recipes/:id/edit`)
 
@@ -403,15 +455,35 @@ frontend/
 - Inline "Add Condition" button
 - Row-level Edit / Delete with confirmation
 
-#### Patients Page (`/patients`)
+#### Patient Profile Page (`/profile`)
 
-- `DataTable` of all patient profiles with: name, age, notes
-- Inline "Add Patient" button opens `PatientForm` Dialog
-- Row-level Edit / Delete
+- Displays the current PATIENT user's own profile (name, age, assigned conditions)
+- Editable fields for notes and personal information
+
+#### Active Orders Page (`/orders/active`)
+
+- Lists all in-flight orders for the current PATIENT
+- Each order shows recipe name, status badge (`REQUESTED` / `PREPARING` / `READY`), and the list of selected optional components
+
+#### Order History Page (`/orders/history`)
+
+- Lists all `DONE` orders for the current PATIENT with the same component detail view
+
+#### Kitchen Page (`/kitchen`)
+
+- Accessible to KITCHEN role only
+- Lists all active orders across all patients
+- **Advance Status** button moves each order along its lifecycle: `REQUESTED → PREPARING → READY → DONE`; each transition triggers a real-time WebSocket push to the relevant patient
+
+#### Doctor Page (`/doctor`)
+
+- Accessible to DOCTOR role only
+- Lists patients assigned to the current doctor
+- Inline controls to assign or remove `PatientCondition` entries from each patient's profile
 
 ### API Integration
 
-**`axiosClient.ts`** creates a pre-configured Axios instance:
+**`api/client.ts`** creates a pre-configured Axios instance:
 
 ```typescript
 import axios from 'axios';
@@ -419,10 +491,9 @@ import axios from 'axios';
 const apiClient = axios.create({ baseURL: '/api' });
 
 apiClient.interceptors.request.use((config) => {
-  const { username, password } = getCredentials();   // from AuthContext
-  if (username && password) {
-    config.headers['Authorization'] =
-      'Basic ' + btoa(`${username}:${password}`);
+  const creds = sessionStorage.getItem('credentials');
+  if (creds) {
+    config.headers['Authorization'] = 'Basic ' + creds;
   }
   return config;
 });
@@ -430,20 +501,18 @@ apiClient.interceptors.request.use((config) => {
 export default apiClient;
 ```
 
-Vite's dev server proxies `/api/*` to `http://localhost:8080/api/*`, eliminating CORS issues during development.
+Vite's dev server proxies `/api/*` → `http://localhost:8081/api/*` and `/ws` → `ws://localhost:8081/ws`, eliminating CORS issues during development.
 
-**TanStack Query** wraps every API call:
+**WebSocket notifications** (`NotificationContext.tsx`) use STOMP over SockJS:
 
 ```typescript
-// useRecipes.ts
-export const useRecipes = () =>
-  useQuery({ queryKey: ['recipes'], queryFn: () => apiClient.get('/recipes').then(r => r.data) });
-
-export const useCreateRecipe = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: RecipeRequest) => apiClient.post('/recipes', body).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['recipes'] }),
+const client = new Client({
+  webSocketFactory: () => new SockJS('/ws'),
+  connectHeaders: { login: username, passcode: password },
+});
+client.onConnect = () => {
+  client.subscribe('/user/queue/notifications', (msg) => {
+    setNotifications(prev => [JSON.parse(msg.body), ...prev]);
   });
 };
 ```
@@ -455,16 +524,24 @@ export interface RecipeResponse {
   id: number;
   name: string;
   description: string;
+  course: string;            // BREAKFAST | LUNCH | DINNER
+  mealType: string;          // MAIN | SIDE
+  imageUrl?: string;         // Unsplash CDN URL
   mainComponent: ComponentResponse;
   modifiableComponents: ComponentResponse[];
 }
 
-export interface CompatibilityResult {
+export interface MealOrderRequest {
+  recipeId: number;
+  selectedComponentIds: number[];
+}
+
+export interface MealOrderResponse {
+  id: number;
   recipeId: number;
   recipeName: string;
-  recipeSelectable: boolean;
-  reason: string;
-  componentDetails: ComponentCompatibility[];
+  status: string;            // REQUESTED | PREPARING | READY | DONE
+  selectedComponents: ComponentResponse[];
 }
 ```
 
@@ -474,64 +551,94 @@ export interface CompatibilityResult {
 
 ### Backend Test Suite
 
-| Test Class                        | Type                          | Tests | Coverage area                                               |
-|-----------------------------------|-------------------------------|-------|-------------------------------------------------------------|
-| `RecipeBuilderTest`               | Unit (no Spring context)      | 9     | `RecipeBuilder` validation rules and fluent API             |
-| `SearchStrategyTest`              | Unit (no Spring context)      | ~18   | All 5 search strategy classes, AND/OR composite logic       |
-| `RecipeServiceIntegrationTest`    | `@SpringBootTest @Transactional` | ~35 | Data seeder, CRUD, compatibility rules, search combinations |
-| `ControllerIntegrationTest`       | `@SpringBootTest @AutoConfigureMockMvc` | ~20 | All REST endpoints; auth enforcement; 401 on unauthenticated |
+All 120 tests run against **H2 in-memory** (`MODE=PostgreSQL`, `create-drop`) via `src/test/resources/application.properties`. No external database is required to run the suite.
+
+| Test Class                        | Type                                    | Tests | Coverage area                                               |
+|-----------------------------------|-----------------------------------------|-------|-------------------------------------------------------------|
+| `RecipeBuilderTest`               | Unit (no Spring context)                | 9     | `RecipeBuilder` validation rules and fluent API             |
+| `SearchStrategyTest`              | Unit (no Spring context)                | 17    | All 5 search strategy classes, AND/OR composite logic       |
+| `MealOrderServiceTest`            | `@SpringBootTest`                       | 15    | Order placement, selected components, status advancement    |
+| `NotificationServiceTest`         | `@SpringBootTest`                       | 13    | Observer pattern, mark-read, per-user filtering             |
+| `RecipeServiceIntegrationTest`    | `@SpringBootTest @Transactional`        | 37    | Data seeder, CRUD, compatibility rules, search combinations |
+| `ControllerIntegrationTest`       | `@SpringBootTest @AutoConfigureMockMvc` | 29    | All REST endpoints; auth enforcement; 401 on unauthenticated; registration |
 
 ### Frontend Test Strategy
 
-| Layer        | Tool                          | Coverage                                                  |
-|--------------|-------------------------------|-----------------------------------------------------------|
-| Unit         | Vitest + React Testing Library | Page components, hooks, utility functions                 |
-| Integration  | Vitest + MSW (Mock Service Worker) | API hook behaviour with mocked HTTP responses         |
-| E2E          | Playwright                    | Login → browse recipes → check compatibility flow          |
+Frontend testing is not yet configured. The TypeScript compilation (`tsc --noEmit`) acts as the primary static verification step.
 
 ---
 
 ## Developer Experience
 
-### Running the Backend
+### Option A — Docker Compose (recommended)
 
 ```bash
-# Prerequisites: Java 21, Maven 3.9+
-cd recipe_maker
-./mvnw spring-boot:run
-# API: http://localhost:8080
-# Swagger UI: http://localhost:8080/swagger-ui.html
-# H2 Console: http://localhost:8080/h2-console  (JDBC URL: jdbc:h2:mem:recipemaker)
+# Builds the full app image, starts PostgreSQL + app
+docker compose up --build
+# App: http://localhost:8081
+# Swagger UI: http://localhost:8081/swagger-ui.html
 ```
 
-### Running the Frontend
+Data is persisted in a Docker named volume `pgdata`. The `app` service will not start until PostgreSQL reports healthy via `pg_isready`.
+
+### Option B — Local Development
 
 ```bash
-cd recipe_maker/frontend
-npm install
-npm run dev
+# 1. Start a local PostgreSQL instance
+docker run -d --name pg \
+  -e POSTGRES_DB=recipemaker \
+  -e POSTGRES_USER=recipemaker \
+  -e POSTGRES_PASSWORD=recipemaker \
+  -p 5432:5432 postgres:16-alpine
+
+# 2. Start the backend (Java 21 + Maven 3.9+)
+cd backend && ./mvnw spring-boot:run
+# API: http://localhost:8081
+# Swagger UI: http://localhost:8081/swagger-ui.html
+
+# 3. Start the frontend (Node 20+)
+cd frontend && npm install && npm run dev
 # App: http://localhost:5173
 ```
 
-> The Vite dev server proxies `/api` to `localhost:8080` — no CORS configuration required.
+> The Vite dev server proxies `/api` and `/ws` to `localhost:8081` — no CORS configuration required.
 
-### Default Seeded Credentials
+### Running Tests
 
-Register a user via `POST /api/auth/register` or Swagger UI to log in. The `DataSeeder` does not create `AppUser` entries automatically.
+```bash
+cd backend && ./mvnw test
+# 120 tests, no external database required (uses H2 in-memory)
+```
+
+### Default Seeded Accounts
+
+On first startup `DataSeeder` creates 6 ready-to-use accounts:
+
+| Username     | Password   | Role       |
+|--------------|------------|------------|
+| `doctor1`    | `password` | DOCTOR     |
+| `dietician1` | `password` | DIETICIAN  |
+| `patient1`   | `password` | PATIENT    |
+| `patient2`   | `password` | PATIENT    |
+| `kitchen1`   | `password` | KITCHEN    |
+| `admin`      | `password` | ADMIN      |
+
+New accounts can be created via the **"Create Account"** button on the login page (roles: DOCTOR / DIETICIAN / PATIENT / KITCHEN; ADMIN is not self-registerable).
 
 ### API Documentation
 
-Live Swagger UI at `http://localhost:8080/swagger-ui.html` documents all endpoints with request/response schemas, powered by SpringDoc OpenAPI 2.5.0.
+Live Swagger UI at `http://localhost:8081/swagger-ui.html` documents all endpoints with request/response schemas, powered by SpringDoc OpenAPI 2.5.0.
 
 ---
 
-## Provisioned Upgrade Paths
+## Potential Upgrade Paths
 
-| Area               | Current                        | Natural Next Step                              |
-|--------------------|--------------------------------|------------------------------------------------|
-| Authentication     | HTTP Basic                     | Wire existing JJWT dependency as Bearer tokens  |
-| Database           | H2 in-memory                   | PostgreSQL / MySQL with Flyway migrations       |
-| Recipe History     | Stub returning all recipes     | Event-sourced audit log or versioning table     |
-| Search             | In-memory `findAll()` + filter | JPA Specification / Criteria API queries        |
-| Export             | Raw entity JSON                | Versioned export DTO with schema documentation  |
-| Frontend Auth      | In-memory credentials          | Secure cookie / token storage + refresh flow   |
+| Area               | Current                             | Natural Next Step                              |
+|--------------------|-------------------------------------|------------------------------------------------|
+| Authentication     | HTTP Basic                          | Wire existing JJWT dependency as Bearer tokens |
+| Database Migrations| `ddl-auto=update`                   | Flyway or Liquibase versioned migrations        |
+| Recipe History     | Stub returning all recipes          | Event-sourced audit log or versioning table     |
+| Search             | In-memory `findAll()` + filter      | JPA Specification / Criteria API queries        |
+| Export             | Raw entity JSON                     | Versioned export DTO with schema documentation  |
+| Frontend Auth      | In-memory credentials (sessionStorage) | HttpOnly cookie / refresh token flow          |
+| Frontend State     | Plain `useState` + Axios            | TanStack Query for caching and background sync  |

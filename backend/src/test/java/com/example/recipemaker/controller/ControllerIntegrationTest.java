@@ -49,11 +49,12 @@ class ControllerIntegrationTest {
     class AuthEndpoints {
         @Test
         void registerUser() throws Exception {
-            String json = "{\"username\":\"testuser1\",\"password\":\"pass123\"}";
+            String json = "{\"username\":\"testuser1\",\"password\":\"pass123\",\"role\":\"PATIENT\"}";
             mockMvc.perform(post("/api/auth/register")
                             .contentType(MediaType.APPLICATION_JSON).content(json))
                     .andExpect(status().isCreated())
-                    .andExpect(content().string("User registered"));
+                    .andExpect(jsonPath("$.username").value("testuser1"))
+                    .andExpect(jsonPath("$.role").value("PATIENT"));
         }
     }
 

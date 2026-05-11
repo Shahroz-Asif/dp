@@ -24,7 +24,7 @@
 \title{\textbf{Recipe Maker — Project Report}\\[0.4em]
   \large Patient Meal Ordering with Component Customisation and Search Strategies}
 \author{Software Engineering — Academic Year 2025/2026}
-\date{4 May 2026}
+\date{11 May 2026}
 
 \begin{document}
 \maketitle
@@ -48,9 +48,13 @@ a component that conflicts with their conditions.
 \textbf{Layer} & \textbf{Technology} \\
 \midrule
 Backend      & Java 21, Spring Boot 3, Spring Security, JPA / Hibernate \\
-Database     & H2 in-memory (ddl-auto = update) \\
-Frontend     & React 18, TypeScript, Vite, React Router v6 \\
-API style    & REST (JSON), Springdoc / OpenAPI \\
+Database (runtime) & PostgreSQL 16-alpine (Docker volume \texttt{pgdata}) \\
+Database (tests)   & H2 in-memory, PostgreSQL compatibility mode \\
+Frontend     & React 18, TypeScript 5, Vite 5.2, React Router v6 \\
+HTTP client  & Axios 1.7 (Basic Auth interceptor) \\
+WebSocket    & STOMP / SockJS (\texttt{@stomp/stompjs} + \texttt{sockjs-client}) \\
+API style    & REST (JSON), Springdoc / OpenAPI, Swagger UI \\
+Deployment   & Docker Compose (app service + PostgreSQL service) \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -61,8 +65,9 @@ API style    & REST (JSON), Springdoc / OpenAPI \\
 \subsection{Core Entities}
 \begin{itemize}[noitemsep]
   \item \texttt{Recipe} — a meal with a course (BREAKFAST / LUNCH / DINNER), a type
-        (MAIN / SIDE), one \emph{non-modifiable} main component, and an optional
-        set of \emph{modifiable} components.
+        (MAIN / SIDE), one \emph{non-modifiable} main component, an optional
+        set of \emph{modifiable} components, and an \texttt{imageUrl} field
+        (Unsplash CDN URL rendered as a card banner in the UI).
   \item \texttt{RecipeComponent} — abstract JPA entity with single-table inheritance.
         Concrete subtypes: \texttt{ModifiableComponent} and \texttt{NonModifiableComponent}.
         Each component carries a \texttt{ManyToMany} relationship to
@@ -76,11 +81,27 @@ API style    & REST (JSON), Springdoc / OpenAPI \\
 \subsection{Component Incompatibility}
 The join table \texttt{component\_incompatibility} associates a
 \texttt{RecipeComponent} with one or more \texttt{PatientCondition}s.
-At ordering time the service validates that none of the patient's conditions
-appear in any selected component's incompatibility set.
+At ordering time the service validates \textbf{two layers}:
+\begin{enumerate}[noitemsep]
+  \item The recipe's \emph{non-modifiable main component} must not conflict with any
+        of the patient's conditions.  If it does, the order is immediately rejected
+        with \texttt{400 Bad Request}.
+  \item For each optional (modifiable) component the patient selected, none of its
+        incompatible conditions may appear in the patient's profile.
+\end{enumerate}
 
 % ─────────────────────────────────────────────────────────────
 \section{Design Patterns}
+
+\subsection{Observer Pattern — Order Lifecycle Notifications}
+\texttt{OrderEventObserver} is an interface with two methods:
+\texttt{onOrderPlaced(MealOrder)} and
+\texttt{onOrderStatusAdvanced(MealOrder, OrderStatus)}.  \texttt{MealOrderService}
+maintains a list of observers and notifies them after each state change.
+\texttt{NotificationService} is the sole registered observer; it persists a
+\texttt{Notification} entity and pushes it to the patient via STOMP/WebSocket.
+Adding further observers (e.g.\ email or SMS dispatch) requires no change to
+\texttt{MealOrderService}.
 
 \subsection{Strategy Pattern — Recipe Search}
 Both the backend and the frontend implement the \emph{Strategy} pattern for
@@ -125,7 +146,78 @@ async methods.  On the backend, Spring Data JPA repositories provide the same
 abstraction.
 
 % ─────────────────────────────────────────────────────────────
-\section{Feature: Modifiable Component Selection}
+\section{Feature: Real-Time Notifications (WebSocket / STOMP)}
+
+\subsection{Motivation}
+Kitchen staff advance order statuses via the \texttt{/api/kitchen/orders/\{id\}/advance}
+endpoint.  Patients need to see status updates without polling.
+
+\subsection{Backend}
+\texttt{WebSocketConfig} registers a STOMP endpoint at \texttt{/ws} (SockJS
+enabled) and configures a simple in-memory message broker.  After every
+\texttt{onOrderStatusAdvanced} call, \texttt{NotificationService} uses
+\texttt{SimpMessagingTemplate} to push a message to
+\texttt{/user/\{username\}/queue/notifications}.
+
+Authentication is handled via the STOMP CONNECT frame's \texttt{login} /
+\texttt{passcode} headers, validated by a custom \texttt{ChannelInterceptor}.
+
+\subsection{Frontend}
+\texttt{NotificationContext.tsx} establishes the SockJS/STOMP connection on mount,
+subscribes to \texttt{/user/queue/notifications}, and appends incoming messages
+to a React state list.  \texttt{NotificationBell.tsx} shows the unread count and
+a dropdown of recent notifications.
+
+% ─────────────────────────────────────────────────────────────
+\section{Feature: User Self-Registration}
+
+\subsection{Motivation}
+Previously there was no UI path for new users to register without
+direct database access or Swagger UI.  The updated system exposes a
+dedicated registration dialog on the login page.
+
+\subsection{Backend}
+\texttt{POST /api/auth/register} (public, no authentication required) accepts
+a \texttt{RegisterRequest} DTO:
+\begin{lstlisting}[language=Java, caption={RegisterRequest.java}]
+@Data
+public class RegisterRequest {
+    private String username;
+    private String password;
+    private String role;   // DOCTOR | DIETICIAN | PATIENT | KITCHEN
+}
+\end{lstlisting}
+
+Validation rules:
+\begin{itemize}[noitemsep]
+  \item \texttt{username} and \texttt{password} must not be blank.
+  \item \texttt{role} must be one of \{DOCTOR, DIETICIAN, PATIENT, KITCHEN\};
+        ADMIN is explicitly excluded from the allow-list.
+  \item Duplicate usernames return \texttt{409 Conflict}.
+\end{itemize}
+
+On success the endpoint returns a \texttt{UserResponse} (\texttt{id},
+\texttt{username}, \texttt{role}) with status \texttt{201 Created}.
+
+\subsection{Frontend}
+\texttt{RegisterModal.tsx} is a custom modal rendered from \texttt{LoginPage.tsx}
+when the user clicks the \emph{Create Account} button.  It contains
+username/password inputs and a role drop-down (ADMIN is hidden).
+Server-side error messages (e.g.\ \emph{Username already taken}) are displayed
+inline.  On success, \texttt{onSuccess(username, password)} is called, which
+automatically submits the login form with the new credentials.
+
+% ─────────────────────────────────────────────────────────────
+\section{Feature: Recipe Images}
+
+A \texttt{imageUrl} field (\texttt{String}) was added to the \texttt{Recipe}
+entity and the \texttt{RecipeResponse} DTO.  \texttt{DataSeeder} populates all
+15 seeded recipes with Unsplash CDN URLs (\texttt{?w=600\&q=80}).
+The React \texttt{RecipeListPage} renders the URL as a full-width banner at the
+top of each recipe card when the field is present.
+
+% ─────────────────────────────────────────────────────────────
+\section{Feature: Real-Time Notifications (WebSocket / STOMP)}
 
 \subsection{Motivation}
 Previously a patient could only order a recipe as a whole.  The updated system
@@ -163,15 +255,20 @@ A \texttt{List<ComponentResponse>} field named \texttt{selectedComponents} was
 added so consumers can display exactly what was ordered.
 
 \subsubsection{Validation in \texttt{MealOrderService.placeOrder()}}
-For each ID in \texttt{selectedComponentIds} the service verifies:
+The service validates in two passes:
 \begin{enumerate}[noitemsep]
-  \item The component exists in the database.
-  \item It is a \texttt{ModifiableComponent} (not non-modifiable).
-  \item It belongs to the requested recipe's modifiable-component set.
-  \item None of its \texttt{incompatibleConditions} are present in the patient's profile.
+  \item \textbf{Main component}: if the recipe's non-modifiable main component
+        conflicts with any of the patient's conditions, the order is rejected
+        immediately with \texttt{400 Bad Request}.
+  \item \textbf{Selected optional components}: for each ID in
+        \texttt{selectedComponentIds} the service verifies:
+        \begin{enumerate}[noitemsep]
+          \item The component exists.
+          \item It is a \texttt{ModifiableComponent}.
+          \item It belongs to the requested recipe.
+          \item None of its \texttt{incompatibleConditions} are in the patient's profile.
+        \end{enumerate}
 \end{enumerate}
-If any check fails, a \texttt{400 Bad Request} is returned with a descriptive
-message.
 
 \subsection{Frontend Changes}
 
@@ -253,10 +350,11 @@ The following table summarises where conflict enforcement takes place:
 \toprule
 \textbf{Enforcement point} & \textbf{Layer} & \textbf{Effect} \\
 \midrule
-Recipe list badge          & Frontend & Shows ``Conflicts'' warning on recipe card \\
-Order Now button           & Frontend & Disabled when the whole recipe conflicts \\
-Component selector         & Frontend & Disables conflicting optional components \\
-\texttt{placeOrder()} validation & Backend & Returns 400 if a selected component conflicts \\
+Recipe card ribbon          & Frontend & Shows ``Conflicts'' warning on card \\
+Order Now button            & Frontend & Disabled when main component conflicts \\
+Component selector          & Frontend & Disables incompatible optional components \\
+Main component check        & Backend  & 400 if main component conflicts patient conditions \\
+Optional component check    & Backend  & 400 if any selected component conflicts \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -269,38 +367,103 @@ Component selector         & Frontend & Disables conflicting optional components
 \toprule
 \textbf{Method} & \textbf{Path} & \textbf{Description} \\
 \midrule
-POST   & \texttt{/api/orders}          & Place order (Patient) \\
-GET    & \texttt{/api/orders/active}   & Active orders for current patient \\
-GET    & \texttt{/api/orders/history}  & Completed orders for current patient \\
-GET    & \texttt{/api/recipes}         & List all recipes \\
-GET    & \texttt{/api/recipes/\{id\}}  & Get single recipe \\
-GET    & \texttt{/api/components}      & List all components \\
+POST   & \texttt{/api/auth/register}          & Register new user (public, returns UserResponse) \\
+GET    & \texttt{/api/auth/me}                & Current authenticated user info \\
+POST   & \texttt{/api/orders}                 & Place order (Patient) \\
+GET    & \texttt{/api/orders/active}          & Active orders for current patient \\
+GET    & \texttt{/api/orders/history}         & Completed orders for current patient \\
+GET    & \texttt{/api/recipes}                & List all recipes \\
+GET    & \texttt{/api/recipes/\{id\}}          & Get single recipe \\
+GET    & \texttt{/api/recipes/search}         & Search by name / component / conditions \\
+POST   & \texttt{/api/recipes/\{id\}/check-compatibility} & Check against condition set \\
+GET    & \texttt{/api/components}             & List all components \\
+GET    & \texttt{/api/conditions}             & List all conditions \\
+GET    & \texttt{/api/kitchen/orders}         & All active orders (Kitchen/Admin) \\
+PUT    & \texttt{/api/kitchen/orders/\{id\}/advance} & Advance order status \\
+GET    & \texttt{/api/doctor/patients}        & Doctor's patients (Doctor/Admin) \\
+POST/DELETE & \texttt{/api/doctor/patients/\{pid\}/conditions/\{cid\}} & Assign/remove condition \\
+GET    & \texttt{/api/notifications}          & Notifications for current user \\
+PUT    & \texttt{/api/notifications/\{id\}/read} & Mark notification read \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 % ─────────────────────────────────────────────────────────────
 \section{Security}
-All endpoints are secured with Spring Security.  Role-based access control is
-enforced via \texttt{@PreAuthorize} annotations:
+All endpoints are secured with Spring Security HTTP Basic.
+Role-based access control is enforced via \texttt{@PreAuthorize} annotations:
 \begin{itemize}[noitemsep]
   \item Only \texttt{PATIENT} role may place or view orders.
-  \item Only \texttt{DIETICIAN} / \texttt{ADMIN} may create or delete recipes and
-        components.
-  \item \texttt{DOCTOR} may manage patient conditions and profiles.
-  \item \texttt{KITCHEN} may advance order status.
+  \item Only \texttt{DIETICIAN} / \texttt{ADMIN} may create, update, or delete
+        recipes and components.
+  \item \texttt{DOCTOR} / \texttt{ADMIN} may manage patient conditions and
+        profiles.
+  \item \texttt{KITCHEN} / \texttt{ADMIN} may advance order status.
+  \item \texttt{/api/auth/**} is fully public (registration and login).
 \end{itemize}
-Passwords are hashed with BCrypt.  CSRF is disabled (stateless JWT-style
-session via \texttt{HttpBasic}).
+Passwords are hashed with BCrypt.  CSRF is disabled (stateless HTTP Basic API).
+The \texttt{POST /api/auth/register} endpoint enforces a role allow-list
+\{DOCTOR, DIETICIAN, PATIENT, KITCHEN\} — ADMIN accounts cannot be
+self-registered.
+
+% ─────────────────────────────────────────────────────────────
+\section{Deployment}
+
+\subsection{Docker Compose}
+A \texttt{docker-compose.yml} at the project root orchestrates two services:
+\begin{itemize}[noitemsep]
+  \item \textbf{db} — \texttt{postgres:16-alpine}; data mounted on named volume
+        \texttt{pgdata}; healthcheck via \texttt{pg\_isready}.
+  \item \textbf{app} — multi-stage Docker image (Node 22 Alpine for the React
+        build, Eclipse Temurin 21 JDK for the Maven build, JRE 21 runtime);
+        receives \texttt{DATABASE\_URL / DATABASE\_USERNAME / DATABASE\_PASSWORD}
+        as environment variables; \texttt{depends\_on: db: condition: service\_healthy}
+        ensures the database is ready before the application starts.
+\end{itemize}
+
+To start the full stack:
+\begin{lstlisting}[language=bash]
+docker compose up --build
+\end{lstlisting}
+The application is available at \texttt{http://localhost:8081} and
+Swagger UI at \texttt{http://localhost:8081/swagger-ui.html}.
+
+\subsection{Local Development}
+For iterative development without Docker, a local PostgreSQL instance is required:
+\begin{lstlisting}[language=bash]
+docker run -d --name pg \
+  -e POSTGRES_DB=recipemaker \
+  -e POSTGRES_USER=recipemaker \
+  -e POSTGRES_PASSWORD=recipemaker \
+  -p 5432:5432 postgres:16-alpine
+
+cd backend && ./mvnw spring-boot:run
+cd frontend && npm install && npm run dev
+\end{lstlisting}
+The Vite dev server proxies \texttt{/api} and \texttt{/ws} to
+\texttt{localhost:8081}.
+
+\subsection{Running Tests}
+\begin{lstlisting}[language=bash]
+cd backend && ./mvnw test   # 120 tests, H2 in-memory, no DB required
+\end{lstlisting}
 
 % ─────────────────────────────────────────────────────────────
 \section{Conclusion}
-The Recipe Maker application now provides an end-to-end safe ordering workflow:
-patients select only the components they want, the frontend immediately disables
-incompatible options based on the loaded patient profile, and the backend
-independently re-validates every selection before persisting the order.  The
-search and filter system uses the Strategy pattern on both tiers, keeping the
-codebase extensible — adding a new filter criterion requires only a new
-leaf-strategy class and a one-line addition to \texttt{buildAndStrategy}.
+The Recipe Maker application provides a complete, role-aware hospital meal
+ordering workflow.  Patients browse recipe cards (with images), select optional
+components in a compatibility-aware modal, and receive real-time status updates
+via WebSocket push notifications.  Kitchen staff advance order statuses from a
+dedicated queue view.  Doctors manage patient conditions that instantly affect
+ordering eligibility.  Dieticians maintain the recipe and component catalogue.
+
+All business rules are enforced at both layers: the frontend disables
+incompatible options immediately based on the loaded patient profile, and the
+backend re-validates every selection before persisting the order.  The search
+and filter system uses the Strategy pattern on both tiers, keeping the codebase
+extensible — adding a new filter criterion requires only a new leaf-strategy
+class and a one-line addition to \texttt{buildAndStrategy}.  The Observer
+pattern on the backend similarly allows new notification channels (email, SMS)
+to be wired in without touching the core order-management service.
 
 \end{document}

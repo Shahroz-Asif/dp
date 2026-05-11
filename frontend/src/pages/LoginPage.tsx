@@ -1,15 +1,27 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { RegisterModal } from '../components/RegisterModal';
 
 export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleRegisterSuccess = async (username: string, password: string) => {
+    setShowRegister(false);
+    try {
+      await login(username, password);
+      navigate('/recipes');
+    } catch {
+      setError('Account created! Please sign in.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +95,17 @@ export function LoginPage() {
             </button>
           </form>
 
+          <div className="login-register-row">
+            <span>New here?</span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => { setError(null); setShowRegister(true); }}
+            >
+              Create Account
+            </button>
+          </div>
+
           <div className="login-demo-accounts">
             <p className="login-hint">Demo accounts:</p>
             <table className="login-demo-table">
@@ -97,6 +120,13 @@ export function LoginPage() {
           </div>
         </div>
       </div>
+
+      {showRegister && (
+        <RegisterModal
+          onClose={() => setShowRegister(false)}
+          onSuccess={handleRegisterSuccess}
+        />
+      )}
     </div>
   );
 }
