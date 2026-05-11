@@ -23,6 +23,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Use the host network during the build so that BuildKit can reach
+      # Docker Hub (avoids the 10.255.255.254 internal DNS timeout)
+      network: host
     restart: unless-stopped
     ports:
       - "8081:8081"
